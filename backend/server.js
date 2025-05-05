@@ -7,13 +7,11 @@ const path = require('path');
 // Load .env file FIRST
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-// REMOVE HARDCODED SECRETS - Rely on .env file loaded by dotenv
-// process.env.AZURE_OPENAI_API_KEY = "CbkAPAnJPM9fHwWkncxJXW37ZBmia3RVytKpE4Vbvz4Rjd1brPulJQQJ99BDACHYHv6XJ3w3AAABACOGyfyy";
-// process.env.AZURE_OPENAI_ENDPOINT = "https://asktufti25.openai.azure.com/";
+// SECRETS REMOVED - Ensure AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT are set in the .env file or Azure App Settings
 
 // Set other necessary env vars, using process.env now that .env is loaded
-process.env.OPENAI_API_VERSION = process.env.OPENAI_API_VERSION || "2025-01-01-preview"; // Keep default if not set
-const deployment = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || "gpt-4.5-preview"; // Use a specific env var for deployment name
+process.env.OPENAI_API_VERSION = process.env.OPENAI_API_VERSION || "2024-12-01-preview"; // Default if not set
+const deployment = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || "gpt-4.5-preview"; 
 
 // Debug output - Will show undefined if not set in .env
 console.log("Environment variables loaded:");
