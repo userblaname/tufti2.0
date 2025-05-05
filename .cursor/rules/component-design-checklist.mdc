@@ -1,0 +1,24 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Component Design Checklist
+
+When designing or requesting new components/features, consider the following:
+
+-   **State Management:**
+    -   Where should the state live? (Local, Context, global store?)
+    -   Is prop drilling becoming excessive?
+    -   Is the state structure scalable?
+-   **Data Fetching:**
+    -   What is the data fetching strategy? (e.g., useEffect, React Query, SWR)
+    -   How are loading and error states handled visually?
+-   **Reusability:**
+    -   Can this component be made more generic?
+    -   Are props clearly defined and typed?
+-   **Composition:**
+    -   How does this component fit within the larger application structure?
+    -   Does it follow separation of concerns?
+-   **Edge Cases:**
+    -   What happens with empty data, invalid inputs, or unexpected user interactions?

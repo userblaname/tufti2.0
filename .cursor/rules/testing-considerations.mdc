@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Testing Considerations
+
+As features are developed, remember to consider testability:
+
+-   **Unit Tests:** Are pure functions and logic isolated enough for unit testing (e.g., with Jest/Vitest)?
+-   **Integration/Component Tests:** Can the component be tested in isolation, simulating user interactions (e.g., with React Testing Library)? Are elements easily selectable (e.g., using `data-testid`)?
+-   **End-to-End Tests:** (If applicable) Does the feature require end-to-end testing (e.g., with Cypress/Playwright)?
+-   **Mocking:** How will dependencies (API calls, modules) be mocked during tests?

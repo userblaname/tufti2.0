@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 14px;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-800;
+    min-height: 100vh;
+  }
+  
+  h1 {
+    @apply text-2xl md:text-3xl;
+  }
+  
+  h2 {
+    @apply text-xl md:text-2xl;
+  }
+  
+  h3 {
+    @apply text-lg md:text-xl;
+  }
+  
+  p {
+    @apply text-sm md:text-base;
+  }
+
+  li {
+    @apply text-sm md:text-base;
+  }
+
+  .prose h1, .prose h2, .prose h3 {
+    @apply font-baroque font-semibold;
+  }
+
+  .prose h1 {
+    @apply text-xl md:text-2xl mt-3 mb-1.5;
+  }
+  .prose h2 {
+    @apply text-lg md:text-xl mt-2.5 mb-1;
+  }
+  .prose h3 {
+    @apply text-base md:text-lg mt-2 mb-0.5 font-modern;
+  }
+  .prose p {
+    @apply text-[15px] leading-relaxed my-1;
+  }
+  .prose ul, .prose ol {
+    @apply my-1 pl-5 text-[15px] leading-relaxed;
+  }
+  .prose li {
+    @apply my-0.5;
+  }
+  .prose li > p {
+    @apply my-0 text-[15px] leading-relaxed;
+  }
+  .prose > :first-child {
+    @apply mt-0;
+  }
+  .prose > :last-child {
+    @apply mb-0;
+  }
+
+  .prose strong, .prose b {
+    @apply text-red-600 font-semibold;
+  }
+}
+
+@keyframes filmRoll {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 200px 200px;
+  }
+}
+
+@keyframes fadeInOut {
+  0%, 100% {
+    opacity: 0.03;
+  }
+  50% {
+    opacity: 0.05;
+  }
+}
+
+@keyframes baroqueFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-5px) rotate(0.5deg);
+  }
+}
+
+body {
+  position: relative;
+  overflow-x: hidden;
+}
+
+.baroque-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.baroque-float {
+  animation: baroqueFloat 6s ease-in-out infinite;
+}
+
+.glass-container {
+  @apply bg-tufti-surface/60 backdrop-blur-lg border border-tufti-red/10;
+}
+
+.text-container {
+  position: relative;
+  z-index: 1;
+}
+
+.text-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    theme('colors.tufti.black/80'),
+    theme('colors.tufti.surface/60')
+  );
+  backdrop-filter: blur(4px);
+  border-radius: inherit;
+  z-index: -1;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded-sm;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 rounded-sm border border-gray-200;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: theme('colors.gray.400') theme('colors.gray.100');
+}
+
+.scroll-smooth {
+  scroll-behavior: smooth;
+}

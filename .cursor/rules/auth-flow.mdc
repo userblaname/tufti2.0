@@ -1,0 +1,61 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Authentication Flow (Supabase Google OAuth)
+
+This document outlines the user authentication flow using Supabase Auth with the Google provider.
+
+1.  **Initial Load:**
+    -   The app loads, and the `[AuthProvider](mdc:src/contexts/AuthContext.tsx)` checks for an existing Supabase session.
+    -   While checking, `isLoading` state in `AuthContext` is true.
+    -   `[App.tsx](mdc:src/App.tsx)` displays a loading indicator.
+
+2.  **User Not Authenticated:**
+    -   `AuthContext` finds no valid session (`user` is null).
+    -   `[App.tsx](mdc:src/App.tsx)` renders the `[SignInButton](mdc:src/components/auth/SignInButton.tsx)` component.
+
+3.  **User Clicks Sign In:**
+    -   `SignInButton` calls `signInWithGoogle` from `AuthContext`.
+    -   `AuthContext` clears any previous `authError`, sets `isLoading` to true.
+    -   `AuthContext` calls `supabase.auth.signInWithOAuth({ provider: 'google' })` within a try/catch block.
+    -   On success, Supabase redirects the user to Google for authentication.
+    -   On failure (e.g., network error, misconfiguration), the catch block sets the `authError` state in `AuthContext` with an error message and sets `isLoading` to false. The `[SignInButton](mdc:src/components/auth/SignInButton.tsx)` displays this error.
+
+4.  **User Returns After Google Auth:**
+    -   User is redirected back to the application.
+    -   `AuthProvider`'s `onAuthStateChange` listener detects the new session and `user` object.
+    -   The `user` and `session` state in `AuthContext` are updated.
+    -   The `useEffect` hook dependent on `user` in `AuthProvider` triggers.
+
+5.  **Profile Fetch & Onboarding Check:**
+    -   The `useEffect` hook in `AuthProvider` sets `isProfileLoading` to true.
+    -   It first performs a basic upsert to `public.users` (id, created_at) to ensure the row exists.
+    -   It then immediately fetches the full user record from `public.users` (including `onboarding_complete` and profile fields).
+    -   On success, it updates the `userProfile` state and the `isOnboardingComplete` state based on the fetched data. `isProfileLoading` is set to false.
+    -   On failure, it sets `profileError`, clears `userProfile`, sets `isOnboardingComplete` to false, and sets `isProfileLoading` to false.
+
+6.  **Conditional Rendering (`[App.tsx](mdc:src/App.tsx)`) Decision:**
+    -   `App.tsx` uses `isLoading` (initial auth), `isProfileLoading`, `user`, and `isOnboardingComplete` from `AuthContext`.
+    -   If `isLoading` or `isProfileLoading` is true -> Show `LoadingScreen`.
+    -   Else if `user` is null -> Show `[SignInButton](mdc:src/components/auth/SignInButton.tsx)`.
+    -   Else if `isOnboardingComplete` is false -> Show `[OnboardingForm](mdc:src/components/onboarding/OnboardingForm.tsx)`.
+    -   Else (user exists, onboarding complete, profile loaded) -> Show `[Chat](mdc:src/components/Chat.tsx)`, passing the `userProfile` from context.
+
+7.  **Onboarding Form Submission (`[OnboardingForm](mdc:src/components/onboarding/OnboardingForm.tsx)`)**:
+    -   User fills out the required profile fields (Name, RT Experience, Focus, Intent).
+    -   On submit, the form calls `updateProfileAndCompleteOnboarding` from `AuthContext`.
+    -   This function updates the user's record in `public.users` (setting profile fields and `onboarding_complete` to true).
+    -   On successful update, `AuthContext` updates its local `userProfile` and `isOnboardingComplete` state.
+    -   The state change causes `App.tsx` to re-render and now display the `Chat` component.
+
+8.  **Sign Out:**
+    -   User clicks the Sign Out button (implemented in `[App.tsx](mdc:src/App.tsx)`).
+    -   `signOut` function from `AuthContext` is called.
+    -   `AuthContext` clears any previous `authError`, sets `isLoading` to true.
+    -   `supabase.auth.signOut()` is executed within a try/catch/finally block.
+    -   On success, `onAuthStateChange` listener detects the sign-out, clearing the `user` and `session` state in `AuthContext`.
+    -   On failure, the catch block sets the `authError` state.
+    -   The `finally` block always sets `isLoading` to false.
+    -   `[App.tsx](mdc:src/App.tsx)` re-renders, showing the `[SignInButton](mdc:src/components/auth/SignInButton.tsx)` again. Any sign-out error would potentially be visible if the user attempts to sign in again.

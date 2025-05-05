@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Error Handling Patterns
+
+Ensure robust error handling throughout the application:
+
+-   **API Errors:** How are errors from API calls caught and displayed to the user? Are there specific error boundaries?
+-   **Component Errors:** Use React Error Boundaries for catching rendering errors in component subtrees.
+-   **User Input Validation:** Provide clear feedback for invalid user inputs (client-side and potentially server-side).
+-   **Graceful Degradation:** What happens if a non-critical part of the UI fails? Does the rest of the app remain usable?
+-   **Logging:** Are important errors logged (client-side or server-side) for debugging?

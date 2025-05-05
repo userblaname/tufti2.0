@@ -1,0 +1,59 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Supabase Data Model
+
+This document outlines the key Supabase tables used in the application.
+
+## `auth.users` (Managed by Supabase)
+
+-   Stores core authentication information for each user (UUID, email, metadata from OAuth provider like Google).
+-   Automatically populated by Supabase Auth when a user signs up or logs in.
+-   The primary key `id` (UUID) is the canonical user identifier throughout the application.
+
+## `public.users`
+
+-   **Purpose:** Stores minimal public-facing or application-specific user profile information, including onboarding status.
+-   **Schema:**
+    -   `id` (uuid, primary key): Foreign key referencing `auth.users.id`.
+    -   `created_at` (timestamptz): Timestamp of creation.
+    -   `onboarding_complete` (boolean): Tracks if the user has completed the initial profile setup (default `false`).
+    -   `name` (text, nullable): User's display name.
+    -   `email` (text, nullable): User's email.
+    -   `avatar_url` (text, nullable): URL for user's avatar.
+    -   `rtExperience` (text, nullable): Stores the enum key for user's RT experience level.
+    -   `realityFocus` (text, nullable): Stores the enum key for user's focus area.
+    -   `transformationIntent` (text, nullable): Stores the enum key for user's goal.
+-   **Population:** Initial row (`id`, `created_at`) populated via upsert in `[AuthContext.tsx](mdc:src/contexts/AuthContext.tsx)`. Profile fields and `onboarding_complete` flag are updated via the `[OnboardingForm](mdc:src/components/onboarding/OnboardingForm.tsx)`.
+-   **RLS:** Requires policies allowing authenticated users to `INSERT`/`UPSERT` their own row, `SELECT` their own row, and `UPDATE` their own row.
+
+## `public.conversations`
+
+-   **Purpose:** Stores metadata for each chat conversation.
+-   **Schema:**
+    -   `id` (uuid, primary key): Unique identifier for the conversation.
+    -   `user_id` (uuid): Foreign key referencing `auth.users.id`. Links the conversation to a specific user.
+    -   `title` (text, nullable): Optional title for the conversation (e.g., first few words of the first message).
+    -   `created_at` (timestamptz): Timestamp of creation.
+-   **RLS:** Requires policies allowing authenticated users to `INSERT` new conversations for themselves and `SELECT` only their own conversations (`auth.uid() = user_id`).
+
+## `public.messages`
+
+-   **Purpose:** Stores individual chat messages within conversations.
+-   **Schema:**
+    -   `id` (uuid, primary key): Unique identifier for the message.
+    -   `conversation_id` (uuid): Foreign key referencing `public.conversations.id`.
+    -   `user_id` (uuid): Foreign key referencing `auth.users.id`.
+    -   `sender` (text): Indicates who sent the message ('user' or 'ai').
+    -   `content` (text): The text content of the message.
+    -   `created_at` (timestamptz): Timestamp of creation.
+-   **Foreign Key:** `conversation_id` references `public.conversations(id)` with **`ON DELETE CASCADE`** added.
+-   **RLS:** Requires policies allowing authenticated users to `INSERT` and `SELECT` messages from their own conversations. A `DELETE` policy is also recommended for completeness, though cascade delete handles deletion tied to conversations.
+
+## Frontend Types
+
+-   Corresponding TypeScript types are defined in `[types.ts](mdc:src/lib/types.ts)`.
+-   `UserProfile` includes all fields stored in `public.users`.
+-   `Message` uses `id: string` to accommodate Supabase UUIDs and temporary local string IDs.

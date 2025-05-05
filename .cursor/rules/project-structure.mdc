@@ -1,0 +1,59 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Project Structure and Coding Guidelines
+
+This document outlines the structure and key coding guidelines for the project.
+
+## Directory Structure
+
+-   **`backend/`**: Contains the Node.js/Express server (`[server.js](mdc:backend/server.js)`), acting solely as a proxy for Azure OpenAI streaming.
+-   **`public/`**: Holds static assets accessible directly by the browser, such as images in `public/assets/`.
+-   **`src/`**: The main source code directory for the frontend application.
+    -   **`components/`**: Reusable React components.
+        -   `auth/`: Authentication related components like the Supabase Auth UI wrapper `[AuthPage.tsx](mdc:src/components/auth/AuthPage.tsx)`.
+        -   `chat/`: Components specific to the chat interface (e.g., `[Header.tsx](mdc:src/components/chat/Header.tsx)`, `[MessageList.tsx](mdc:src/components/chat/MessageList.tsx)`).
+        -   `onboarding/`: Components for the initial user profile setup (`[OnboardingForm.tsx](mdc:src/components/onboarding/OnboardingForm.tsx)`).
+        -   `ui/`: General-purpose UI elements.
+    -   **`contexts/`**: React Context providers.
+        -   `[AuthContext.tsx](mdc:src/contexts/AuthContext.tsx)`: Manages Supabase authentication state (user, session, loading states, errors), handles profile fetching/upserting/updating, and checks onboarding status.
+        -   `[MessageContext.tsx](mdc:src/contexts/MessageContext.tsx)`: Provides functions for message interactions (feedback, retry, copy) within `MessageList`.
+    -   **`hooks/`**: Custom React hooks.
+        -   `[useChat.ts](mdc:src/hooks/useChat.ts)`: Manages core chat state (messages, loading, errors), handles history loading/saving, interacts with the backend AI proxy, implements text reveal animation, and provides logic for **deleting the current conversation** (exposed as `clearChat`).
+    -   **`lib/`**: Utility functions, helper modules, and integrations.
+        -   `supabase/`: Supabase client initialization (`[client.ts](mdc:src/lib/supabase/client.ts)`).
+        -   `types.ts`: Core type definitions (`[UserProfile](mdc:src/lib/types.ts)`, `[Message](mdc:src/lib/types.ts)`).
+        -   `tufti/`: Constants related to the Tufti persona (`[constants.ts](mdc:src/lib/tufti/constants.ts)`).
+    -   **`pages/`**: (Currently unused, `[App.tsx](mdc:src/App.tsx)` acts as the main entry).
+-   **`.cursor/rules/`**: Contains Cursor rule files like this one.
+
+## Supabase Integration
+
+-   **Authentication**: Uses Supabase Auth with Google OAuth provider. Managed by `[AuthContext.tsx](mdc:src/contexts/AuthContext.tsx)`.
+-   **Database Tables (Public Schema)**:
+    -   `users`: Stores minimal user profile info, synced with `auth.users` via upsert in `AuthContext`.
+    -   `conversations`: Stores chat conversation metadata, linked to `auth.users` via `user_id`.
+    -   `messages`: Stores individual chat messages, linked to `conversations`.
+-   **Row Level Security (RLS)**: Enabled and crucial for `users`, `conversations`, and `messages` tables to ensure users can only access/modify/delete their own data.
+
+## Key Configuration Files
+
+-   **`[index.html](mdc:index.html)`**: The main HTML entry point.
+-   **`[package.json](mdc:package.json)`**: Defines project dependencies and scripts.
+-   **`[vite.config.ts](mdc:vite.config.ts)`**: Vite build tool configuration.
+-   **`[tailwind.config.js](mdc:tailwind.config.js)`**: Tailwind CSS configuration.
+-   **`[tsconfig.json](mdc:tsconfig.json)`**: TypeScript configuration.
+-   **`[eslint.config.js](mdc:eslint.config.js)`**: ESLint configuration.
+
+## Coding Guidelines Summary
+
+-   **Framework/Language**: Use ReactJS with TypeScript.
+-   **Styling**: Use TailwindCSS classes exclusively. Avoid inline styles or separate CSS files. Use `class:` syntax over ternary operators where applicable.
+-   **Readability**: Prioritize early returns and descriptive naming for variables and functions.
+-   **Event Handlers**: Prefix event handler functions with `handle` (e.g., `handleClick`).
+-   **Function Definition**: Prefer `const` arrow functions for components and functions (e.g., `const MyComponent = () => {}`). Define types where possible.
+-   **Accessibility**: Implement accessibility features (e.g., `tabindex`, `aria-label`, keyboard event handlers) on interactive elements.
+-   **Principles**: Follow DRY (Don't Repeat Yourself) principles.
+-   **Completeness**: Ensure code is fully functional, bug-free, and leaves no TODOs or placeholders.

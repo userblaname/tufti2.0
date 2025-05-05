@@ -1,0 +1,21 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Design System Guidelines
+
+This document outlines key visual design decisions for the project.
+
+## Corner Radius
+
+-   **Standard:** Use a consistent corner radius of **12px** (`rounded-xl` in Tailwind) for all major UI elements, including buttons, input fields, message bubbles, cards, etc.
+-   **Goal:** Maintain a smooth, cohesive, and modern look, avoiding sharp corners.
+-   **Exceptions:** Tiny elements or specific decorative choices might deviate, but the default should always be `rounded-xl`.
+
+## Color Palette (Primary)
+
+-   **Background:** Deep Navy (`bg-navy-deep` - #1A2A40)
+-   **Accent:** Teal (`teal-accent` - #38B2AC)
+-   **Text (on Dark):** Light Gray (`text-gray-100`, `text-gray-200`)
+-   **Text (on Light):** Dark Gray/Navy (`text-gray-800`)

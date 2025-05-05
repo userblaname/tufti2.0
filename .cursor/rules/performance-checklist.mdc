@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Performance Checklist
+
+While prioritizing readability, keep performance in mind, especially for complex features:
+
+-   **Re-renders:** Are components re-rendering unnecessarily? Consider `React.memo`, `useCallback`, `useMemo`.
+-   **Bundle Size:** Are large libraries being imported? Could code splitting or dynamic imports (`React.lazy`) help?
+-   **List Rendering:** Are keys used correctly for lists? Is virtualization needed for very long lists?
+-   **Expensive Computations:** Are there heavy calculations happening on render? Can they be memoized or moved?
+-   **Network Requests:** Are requests efficient? Is data being over-fetched?
