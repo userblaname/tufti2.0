@@ -11,6 +11,7 @@ interface ChatProps {
 }
 
 export default function Chat({ userProfile, signOut }: ChatProps) {
+  console.log("--- DEV_LOG: Chat component rendered ---");
   // Use chat hook first to avoid order violations
   const { 
     messages, 
@@ -60,7 +61,7 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
               onFeedback={updateMessageFeedback}
             />
           ) : (
-            <motion.div 
+            <motion.div
               key="no-messages"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

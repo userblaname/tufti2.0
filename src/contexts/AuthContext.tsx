@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsProfileLoading(false); 
         setIsOnboardingComplete(null);
         setUserProfile(null);
-      }
+        }
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
            setUserProfile(null);
            setProfileError(null);
            setAuthError(null);
-        } else {
+      } else {
           // User is now available or refreshed, profile fetch effect will trigger
         }
       }
@@ -194,8 +194,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       })
       if (error) {
-        throw error
-      }
+      throw error
+    }
       console.log("Redirecting to Google...")
     } catch (error: any) {
       console.error('Error during Google Sign In:', error.message)
@@ -211,7 +211,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log("Attempting Sign Out...")
       const { error } = await supabase.auth.signOut()
       if (error) {
-        throw error
+      throw error
       }
       console.log("Sign out successful.")
     } catch (error: any) {

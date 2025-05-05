@@ -46,7 +46,7 @@ const ChatInput = memo(({
       conditionMet: inputValue.trim() && !disabled && validate(inputValue)
     });
     if (inputValue.trim() && !disabled && validate(inputValue)) {
-      console.log('Send condition MET. Calling onSendMessage...');
+      console.log('--- DEV_LOG: ChatInput handleSend calling onSendMessage ---');
       success()
       onSendMessage(inputValue.trim())
       setInputValue('')

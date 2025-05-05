@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase/client'; // Import Supabase client
 import type { Message, UserProfile } from '@/lib/types'
 import { TUFTI_SYSTEM_PROMPT } from "@/lib/tufti";
 
-// Define the backend endpoint URL
-const BACKEND_API_URL = 'http://localhost:3001/api/chat';
+// Define the backend endpoint URL - now relative for SWA
+const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || '/api/chat';
 
 // Speed for revealing text (milliseconds per word)
 const REVEAL_SPEED_MS = 50;
@@ -142,13 +142,13 @@ export function useChat(userProfile: UserProfile) { // Receive UserProfile direc
           console.error('Error loading history:', error.message);
           // Set specific error message or fallback welcome message
           if (error.message.includes('No conversation found') || error.message.includes('No messages')) {
-              const welcomeMessage: Message = {
+          const welcomeMessage: Message = {
                 id: createLocalId(), // Use local string ID generator
                 text: `Ah, welcome ${userProfile.name}! I see you've come seeking guidance about ${userProfile.transformationIntent || 'your journey'}. Let's explore this scene in your reality film together.`,
-                sender: "tufti",
-                timestamp: new Date()
-              };
-              setMessages([welcomeMessage]);
+            sender: "tufti",
+            timestamp: new Date()
+          };
+          setMessages([welcomeMessage]);
               conversationIdRef.current = null;
           } else {
               // Set a generic error message for other failures
@@ -255,6 +255,7 @@ User ID: ${userId}
 Timestamp: ${new Date().toISOString()}
 ---
 `);
+    console.log("DEV_LOG: Current message count inside sendMessage (might be stale):", messages.length);
     setChatError(null);
     
     if (!userId) { 
@@ -279,31 +280,40 @@ Timestamp: ${new Date().toISOString()}
     const assistantMessageId = createLocalId();
     const assistantMessagePlaceholder: Message = { id: assistantMessageId, text: '', sender: "tufti", timestamp: new Date() };
 
-    // Local copy for preparing backend request before state update
-    const messagesForBackend = [...messages, userMessage];
+    // Construct payload based on potentially stale messages if needed, or refetch
+    let messagesForBackend: Message[] = [];
+    setMessages(prev => {
+        messagesForBackend = [...prev, userMessage];
+        return messagesForBackend; // Return the new state for immediate UI update
+    });
+    // Add placeholder AFTER user message is added to state
+    setMessages(prev => [...prev, assistantMessagePlaceholder]);
+    
+    setIsTyping(true);
+    setIsGenerating(true);
+    streamingMessageIdRef.current = assistantMessageId;
+    targetTextRef.current = ""; 
+    currentWordIndexRef.current = 0;
     let currentConversationId = conversationIdRef.current;
-
-    // Wrap DB operations and API call in try/catch/finally
-    setIsGenerating(true); // Set generating flag early
     let fullAssistantResponse = "";
 
     try {
-      // --- Supabase Integration: START ---
-      // 1. Create conversation if it doesn't exist
-      if (!currentConversationId) {
+    // --- Supabase Integration: START ---
+    // 1. Create conversation if it doesn't exist
+    if (!currentConversationId) {
         console.log('No active conversation, creating new one for user:', userId);
-        const { data: newConversation, error: createConvError } = await supabase
-          .from('conversations')
+      const { data: newConversation, error: createConvError } = await supabase
+        .from('conversations')
           .insert({ user_id: userId, title: text.substring(0, 50) })
-          .select()
-          .single();
+        .select()
+        .single();
 
         if (createConvError) throw new Error(`Supabase error creating conversation: ${createConvError.message}`);
         if (!newConversation) throw new Error('Failed to create or retrieve new conversation ID.');
         
         console.log('Created new conversation:', newConversation.id);
-        currentConversationId = newConversation.id;
         conversationIdRef.current = newConversation.id;
+        currentConversationId = conversationIdRef.current; // Update local var
       }
 
       // Update UI immediately AFTER ensuring conversation exists
@@ -323,14 +333,13 @@ Timestamp: ${new Date().toISOString()}
       console.log('User message saved successfully.');
 
       // --- Prepare and call Backend API --- 
-      // Prepare messages for backend (system prompt + history + user message)
       const systemPrompt = { role: "system", content: TUFTI_SYSTEM_PROMPT };
       const backendPayload = {
         messages: [
           systemPrompt,
           ...messagesForBackend.map(msg => ({
             role: msg.sender === 'user' ? 'user' : 'assistant',
-            content: msg.text
+        content: msg.text
           }))
         ]
       };
@@ -379,7 +388,7 @@ Timestamp: ${new Date().toISOString()}
             const message = buffer.substring(0, boundary);
             buffer = buffer.substring(boundary + 2);
             if (message.startsWith('data: ')) {
-                try {
+            try {
                     const jsonString = message.substring(6);
                     const data = JSON.parse(jsonString);
                     if (data.error) {
@@ -388,7 +397,7 @@ Timestamp: ${new Date().toISOString()}
                     } else if (data.content) {
                         fullAssistantResponse += data.content;
                         targetTextRef.current = fullAssistantResponse;
-                    }
+              }
                 } catch (e) {
                     console.error('Error parsing stream chunk:', e, 'Chunk:', message);
                     // Optionally throw here or append an error to fullAssistantResponse
@@ -417,7 +426,7 @@ Timestamp: ${new Date().toISOString()}
         setChatError("Message generation cancelled.");
         // Optionally remove the placeholder if desired
         // setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId)); 
-      } else {
+       } else {
         console.error('Error during sendMessage process:', error);
         setChatError(`Error: ${error.message || "An unknown error occurred."}`);
         // Ensure the potentially incomplete response is shown with error context
@@ -434,7 +443,7 @@ Timestamp: ${new Date().toISOString()}
       ));
       setIsGenerating(false); // Clear generating flag
       streamingMessageIdRef.current = null; 
-      abortControllerRef.current = null; 
+      abortControllerRef.current = null;
       console.log(`
 --- DEV_LOG: sendMessage FINALLY block completed ---
 Timestamp: ${new Date().toISOString()}
@@ -452,25 +461,37 @@ Timestamp: ${new Date().toISOString()}
     // TODO: Optionally save feedback to Supabase? (Needs schema change)
   }, []); // No dependencies needed
 
+  // --- Retry Message --- 
   const retryLastMessage = useCallback(async () => {
-    console.log(`
+     console.log(`
 --- DEV_LOG: retryLastMessage START ---
 Timestamp: ${new Date().toISOString()}
 ---
 `);
+    // --- Re-enabled --- 
     stopTextReveal(); // Stop any active reveal
     abortControllerRef.current?.abort(); // Abort any ongoing fetch
 
-    const lastUserMessageIndex = messages.findLastIndex((msg: Message) => msg.sender === 'user');
-    if (lastUserMessageIndex !== -1) {
-         const messagesToRetry = messages.slice(0, lastUserMessageIndex + 1);
-         const lastUserMessageText = messagesToRetry[lastUserMessageIndex].text;
-         // Optimistically remove assistant response before retrying
-         setMessages(messagesToRetry);
-         // Call send message again
-         await sendMessage(lastUserMessageText);
+    // Use functional update to get latest messages for slicing
+    let lastUserMessageText = '';
+    setMessages(prev => {
+      const lastUserMessageIndex = prev.findLastIndex((msg: Message) => msg.sender === 'user');
+      if (lastUserMessageIndex !== -1) {
+        const messagesToRetry = prev.slice(0, lastUserMessageIndex + 1);
+        lastUserMessageText = messagesToRetry[lastUserMessageIndex].text;
+        return messagesToRetry; // Set state back to before the failed attempt
+      } else {
+        console.log("--- DEV_LOG: No last user message found to retry ---");
+        return prev; // No change
+      }
+    });
+    
+    // Only call sendMessage if we found a message to retry
+    if (lastUserMessageText) {
+      console.log("--- DEV_LOG: Calling sendMessage from retryLastMessage ---");
+      await sendMessage(lastUserMessageText);
     }
-  }, [messages, sendMessage, stopTextReveal]);
+  }, [sendMessage, stopTextReveal]);
 
   // Renamed original clearChat to reflect it only resets frontend state
   const resetFrontendChatState = useCallback(() => {

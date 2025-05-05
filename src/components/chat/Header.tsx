@@ -28,18 +28,18 @@ const Header = memo(({ userName, onClearChat, signOut }: HeaderProps) => {
   };
   
   return (
-    <motion.header
+  <motion.header
       className="relative bg-gradient-to-b from-tufti-surface/80 to-transparent backdrop-blur-sm py-3"
-      initial="hidden"
-      animate="visible"
-      variants={headerVariants}
-      role="banner"
-    >
+    initial="hidden"
+    animate="visible"
+    variants={headerVariants}
+    role="banner"
+  >
       <div className="max-w-7xl mx-auto px-4 lg:px-6">
         <div className="flex items-center justify-between">
           
           <div className="flex items-center">
-             <HeaderTitle />
+        <HeaderTitle />
           </div>
 
           <div className="flex items-center space-x-2">
@@ -66,15 +66,15 @@ const Header = memo(({ userName, onClearChat, signOut }: HeaderProps) => {
              </Button>
           </div>
 
-        </div>
       </div>
-      
-      {/* Decorative bottom border */}
+    </div>
+    
+    {/* Decorative bottom border */}
       {/* <div className="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-tufti-red/20 to-transparent" /> */}
-      
-      {/* Ambient glow */}
+    
+    {/* Ambient glow */}
       {/* <div className="absolute -bottom-20 inset-x-0 h-20 bg-gradient-to-b from-tufti-red/5 to-transparent pointer-events-none" /> */}
-    </motion.header>
+  </motion.header>
   );
 })
 
