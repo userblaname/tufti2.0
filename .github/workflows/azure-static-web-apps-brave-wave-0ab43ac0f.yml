@@ -40,10 +40,9 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "/" # App source code path
-          api_location: "" # Api source code path
-          output_location: "dist" # Built app content directory
-          github_id_token: ${{ steps.idtoken.outputs.result }}
+          app_location: "/" # This is correct, your Vite project root is the repo root
+          api_location: ""  # Should be empty if you have no Azure Functions in an 'api' folder
+          output_location: "dist" # Vite builds to the 'dist' folder by default
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
