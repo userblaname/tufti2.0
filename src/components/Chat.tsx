@@ -17,6 +17,7 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
     messages, 
     isTyping, 
     isGenerating, 
+    isSending,
     sendMessage, 
     updateMessageFeedback, 
     retryLastMessage,
@@ -81,7 +82,7 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
 
         <ChatInput 
           onSendMessage={sendMessage} 
-          disabled={isTyping || isGenerating}
+          disabled={isTyping || isGenerating || isSending}
           isGenerating={isGenerating}
         />
         

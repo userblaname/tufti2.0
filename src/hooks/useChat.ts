@@ -19,6 +19,7 @@ export function useChat(userProfile: UserProfile) { // Receive UserProfile direc
   const [isGenerating, setIsGenerating] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null); // <-- Add error state
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [isSending, setIsSending] = useState(false); // Add isSending state
 
   // Get user ID from the passed profile
   const userId = userProfile.id;
@@ -256,7 +257,14 @@ Timestamp: ${new Date().toISOString()}
 ---
 `);
     console.log("DEV_LOG: Current message count inside sendMessage (might be stale):", messages.length);
+
+    if (isSending) { // Prevent duplicate sends
+      console.log("DEV_LOG: sendMessage called while already sending. Aborting.");
+      return;
+    }
+
     setChatError(null);
+    setIsSending(true); // Set sending state
     
     if (!userId) { 
         console.error("Attempted to send message without a user ID.");
@@ -442,6 +450,7 @@ Timestamp: ${new Date().toISOString()}
       setIsGenerating(false); // Clear generating flag
       streamingMessageIdRef.current = null; 
       abortControllerRef.current = null;
+      setIsSending(false); // Clear sending state
       console.log(`
 --- DEV_LOG: sendMessage FINALLY block completed ---
 Timestamp: ${new Date().toISOString()}
@@ -450,7 +459,7 @@ Timestamp: ${new Date().toISOString()}
       // Note: Supabase saves happen *within* the try block upon success now.
     }
 
-  }, [messages, stopTextReveal, userProfile, userId]);
+  }, [messages, stopTextReveal, userProfile, userId, isSending]);
 
   const updateMessageFeedback = useCallback((messageId: string, feedback: Message['feedback']) => {
     setMessages(prev => prev.map(msg =>
@@ -553,6 +562,7 @@ Timestamp: ${new Date().toISOString()}
     isLoadingHistory, // Expose history loading state
     isTyping,
     isGenerating,
+    isSending, // Expose isSending state
     chatError, // <-- Return error state
     sendMessage,
     updateMessageFeedback,
