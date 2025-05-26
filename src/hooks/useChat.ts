@@ -280,15 +280,13 @@ Timestamp: ${new Date().toISOString()}
     const assistantMessageId = createLocalId();
     const assistantMessagePlaceholder: Message = { id: assistantMessageId, text: '', sender: "tufti", timestamp: new Date() };
 
-    // Construct payload based on potentially stale messages if needed, or refetch
-    let messagesForBackend: Message[] = [];
-    setMessages(prev => {
-        messagesForBackend = [...prev, userMessage];
-        return messagesForBackend; // Return the new state for immediate UI update
-    });
-    // Add placeholder AFTER user message is added to state
-    setMessages(prev => [...prev, assistantMessagePlaceholder]);
-    
+    // Update state with both user message and assistant placeholder in a single call
+    setMessages(prev => [...prev, userMessage, assistantMessagePlaceholder]);
+
+    // Construct payload for the backend API call with the updated state
+    // messagesForBackend will now correctly include the user message and placeholder
+    const messagesForBackend = [...messages, userMessage, assistantMessagePlaceholder];
+
     setIsTyping(true);
     setIsGenerating(true);
     streamingMessageIdRef.current = assistantMessageId;
