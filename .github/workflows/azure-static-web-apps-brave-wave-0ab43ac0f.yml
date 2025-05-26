@@ -28,5 +28,9 @@ jobs:
           api_location: "./api"
           output_location: "dist"  # Changed from "build" to "dist"
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+            VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+            VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+            AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+            AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+            AZURE_OPENAI_DEPLOYMENT_NAME: ${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}
+            OPENAI_API_VERSION: ${{ secrets.OPENAI_API_VERSION }}
