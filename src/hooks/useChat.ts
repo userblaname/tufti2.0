@@ -36,8 +36,7 @@ export function useChat(userProfile: UserProfile) { // Receive UserProfile direc
   // Ref to store the ID of the message being actively streamed
   const streamingMessageIdRef = useRef<string | null>(null);
 
-  // Use string IDs for locally created messages
-  const createLocalId = () => `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const generateUniqueId = () => `local_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
   // Helper function to stop the reveal interval
   const stopTextReveal = useCallback(() => {
@@ -62,7 +61,7 @@ export function useChat(userProfile: UserProfile) { // Receive UserProfile direc
     if (!userId) { // Guard against missing userId
         console.error("Attempted to load history without a user ID.");
         setMessages([{ 
-            id: createLocalId(), // <-- FIX: Use createLocalId()
+            id: generateUniqueId(), // <-- FIX: Use createLocalId()
             text: "Error: Cannot load chat history without user identification.", 
             sender: "system", 
             timestamp: new Date() 
@@ -144,7 +143,7 @@ export function useChat(userProfile: UserProfile) { // Receive UserProfile direc
           // Set specific error message or fallback welcome message
           if (error.message.includes('No conversation found') || error.message.includes('No messages')) {
           const welcomeMessage: Message = {
-                id: createLocalId(), // Use local string ID generator
+                id: generateUniqueId(), // Use local string ID generator
                 text: `Ah, welcome ${userProfile.name}! I see you've come seeking guidance about ${userProfile.transformationIntent || 'your journey'}. Let's explore this scene in your reality film together.`,
             sender: "tufti",
             timestamp: new Date()
@@ -281,11 +280,11 @@ Timestamp: ${new Date().toISOString()}
     abortControllerRef.current = controller;
 
     // Prepare User Message with local string ID
-    const userMessageId = createLocalId(); 
+    const userMessageId = generateUniqueId(); 
     const userMessage: Message = { id: userMessageId, text, sender: "user", timestamp: new Date() };
 
     // Prepare Assistant Placeholder with local string ID
-    const assistantMessageId = createLocalId();
+    const assistantMessageId = generateUniqueId();
     const assistantMessagePlaceholder: Message = { id: assistantMessageId, text: '', sender: "tufti", timestamp: new Date() };
 
     // Update state with both user message and assistant placeholder in a single call
@@ -293,7 +292,7 @@ Timestamp: ${new Date().toISOString()}
 
     // Construct payload for the backend API call with the updated state
     // messagesForBackend will now correctly include the user message and placeholder
-    const messagesForBackend = [...messages, userMessage, assistantMessagePlaceholder];
+    // const messagesForBackend = [...messages, userMessage, assistantMessagePlaceholder];
 
     setIsTyping(true);
     setIsGenerating(true);
@@ -322,13 +321,6 @@ Timestamp: ${new Date().toISOString()}
         currentConversationId = conversationIdRef.current; // Update local var
       }
 
-      // Update UI immediately AFTER ensuring conversation exists
-      setMessages(prev => [...prev, userMessage, assistantMessagePlaceholder]);
-      setIsTyping(true);
-      streamingMessageIdRef.current = assistantMessageId;
-      targetTextRef.current = ""; 
-      currentWordIndexRef.current = 0;
-
       // 2. Save User Message to Supabase
       console.log(`Saving user message to conversation ${currentConversationId}...`);
       const { error: userMsgError } = await supabase
@@ -338,91 +330,17 @@ Timestamp: ${new Date().toISOString()}
       if (userMsgError) throw new Error(`Supabase error saving user message: ${userMsgError.message}`);
       console.log('User message saved successfully.');
 
-      // --- Prepare and call Backend API --- 
-      const systemPrompt = { role: "system", content: TUFTI_SYSTEM_PROMPT };
-      const backendPayload = {
-        messages: [
-          systemPrompt,
-          ...messagesForBackend.map(msg => ({
-            role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
-          }))
-        ]
-      };
-
-      console.log("--- DEV_LOG: Preparing to fetch from backend API ---"); // Log before fetch
-      const response = await fetch(BACKEND_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(backendPayload),
-        signal: controller.signal,
-      });
-      console.log("--- DEV_LOG: Fetch response received (status: ", response.status, ") ---"); // Log after fetch
-
-      setIsTyping(false); // Stop typing indicator once response starts
-
-      if (!response.ok) {
-        // Try to get error message from backend response body
-        let errorBody = "Unknown error";
-        try {
-          const jsonError = await response.json();
-          errorBody = jsonError.error || response.statusText;
-        } catch { 
-            errorBody = response.statusText;
-        }
-        throw new Error(`API request failed: ${response.status} ${errorBody}`);
-      }
-
-      if (!response.body) {
-        throw new Error('Response body is null');
-      }
-
-      // --- Process Stream --- 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          console.log('Stream finished.');
-          break;
-        }
-        buffer += decoder.decode(value, { stream: true });
-        let boundary = buffer.indexOf('\n\n');
-        while (boundary !== -1) {
-            const message = buffer.substring(0, boundary);
-            buffer = buffer.substring(boundary + 2);
-            if (message.startsWith('data: ')) {
-            try {
-                    const jsonString = message.substring(6);
-                    const data = JSON.parse(jsonString);
-                    if (data.error) {
-                        console.error("Stream error from backend:", data.error);
-                        fullAssistantResponse += `\n[Error: ${data.error}]`; 
-                    } else if (data.content) {
-                        fullAssistantResponse += data.content;
-                        targetTextRef.current = fullAssistantResponse;
-              }
-                } catch (e) {
-                    console.error('Error parsing stream chunk:', e, 'Chunk:', message);
-                    // Optionally throw here or append an error to fullAssistantResponse
-                }
-            }
-            boundary = buffer.indexOf('\n\n');
-        }
-      } // End while(true)
-
-      // Stream finished successfully, now save assistant message
-      if (fullAssistantResponse && currentConversationId) {
-          console.log(`Saving assistant message to conversation ${currentConversationId}...`);
-          const { error: assistantMsgError } = await supabase
-              .from('messages')
-              .insert({ conversation_id: currentConversationId, content: fullAssistantResponse, sender: 'ai', user_id: userId });
-
-          if (assistantMsgError) throw new Error(`Supabase error saving assistant message: ${assistantMsgError.message}`);
-          console.log('Assistant message saved successfully.');
-      }
+      // --- MOCK API CALL FOR LOCAL TESTING ---
+      console.log("API disabled for testing");
+      // Simulate API response for testing
+      // setTimeout(() => {
+      //   const mockResponse = { content: "Mock AI response for testing" };
+      //   setMessages(prev => prev.map(msg =>
+      //     msg.id === assistantMessageId ? { ...msg, text: mockResponse.content } : msg
+      //   ));
+      //   setIsTyping(false);
+      //   setIsGenerating(false);
+      // }, 1000);
 
     } catch (error: any) {
       console.error("DEV_LOG: Error occurred within sendMessage try block:", error);
@@ -505,7 +423,7 @@ Timestamp: ${new Date().toISOString()}
     stopTextReveal();
     abortControllerRef.current?.abort();
     const welcomeMessage: Message = {
-      id: createLocalId(),
+      id: generateUniqueId(),
       text: `Ah, welcome ${userProfile.name}! I see you've come seeking guidance about ${userProfile.transformationIntent || 'your journey'}. Let's explore this scene in your reality film together.`,
       sender: "tufti",
       timestamp: new Date()
