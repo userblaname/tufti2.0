@@ -1,3 +1,4 @@
+// Final check for deployment
 const express = require('express');
 const { AzureOpenAI } = require('openai');
 const dotenv = require('dotenv');
@@ -34,6 +35,9 @@ const client = new AzureOpenAI({
 // --- Middleware ---
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from the 'dist' folder
+app.use(express.static(path.join(__dirname, '..', 'dist')));
 
 // --- API Endpoint for Chat ---
 app.post('/api/chat', async (req, res) => {
@@ -114,6 +118,11 @@ app.post('/api/chat', async (req, res) => {
         res.end();
     }
   }
+});
+
+// Catch-all route for serving the React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..' , 'dist', 'index.html'));
 });
 
 // --- Start Server ---
