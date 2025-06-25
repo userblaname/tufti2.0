@@ -29,7 +29,6 @@ const client = new AzureOpenAI({
   endpoint: process.env.AZURE_OPENAI_ENDPOINT,
   apiKey: process.env.AZURE_OPENAI_API_KEY,
   apiVersion: process.env.OPENAI_API_VERSION,
-  deployment: deployment, // Pass deployment name if needed by constructor
 });
 
 // --- Middleware ---
@@ -55,7 +54,7 @@ app.post('/api/chat', async (req, res) => {
     // --- Restore Azure call and streaming --- 
     console.log(`Calling Azure OpenAI...`);
     const stream = await client.chat.completions.create({
-        model: deployment,
+        deployment: deployment,
         messages: messages,
         stream: true,
         max_tokens: 800, // Restore params if needed
