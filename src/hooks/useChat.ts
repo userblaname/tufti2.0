@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'; // Import Supabase client
 import type { Message, UserProfile } from '@/lib/types'
 import { TUFTI_SYSTEM_PROMPT } from "@/lib/tufti";
+import { useAuth } from '@/contexts/AuthContext';
 
 // Define the backend endpoint URL - now relative for SWA
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || '/api/chat';
@@ -21,7 +22,7 @@ export function useChat(userProfile: UserProfile) { // Receive UserProfile direc
   const abortControllerRef = useRef<AbortController | null>(null);
   const [isSending, setIsSending] = useState(false); // Add isSending state
 
-  // Get user ID from the passed profile
+  const { session } = useAuth(); // Get the session from AuthContext
   const userId = userProfile.id;
 
   // Ref to store the ID of the current Supabase conversation
@@ -292,7 +293,12 @@ Timestamp: ${new Date().toISOString()}
 
     // Construct payload for the backend API call with the updated state
     // messagesForBackend will now correctly include the user message and placeholder
-    // const messagesForBackend = [...messages, userMessage, assistantMessagePlaceholder];
+    const messagesForBackend = [...messages, userMessage, assistantMessagePlaceholder];
+    const token = session?.access_token; // Get the access token
+
+    if (!token) {
+      throw new Error("No authentication token available.");
+    }
 
     setIsTyping(true);
     setIsGenerating(true);
@@ -303,15 +309,81 @@ Timestamp: ${new Date().toISOString()}
     let fullAssistantResponse = "";
 
     try {
-    // --- Supabase Integration: START ---
-    // 1. Create conversation if it doesn't exist
-    if (!currentConversationId) {
+      const response = await fetch(BACKEND_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          messages: messagesForBackend, 
+          conversationId: currentConversationId, // Pass the conversation ID
+          userId: userId // Pass the user ID
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API error: ${errorData.message || response.statusText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Failed to get stream reader.");
+      }
+
+      let streamHasStarted = false;
+      let botReplyMessageId = assistantMessageId; // Use the same ID for chunks
+      
+      // Corrected SSE parsing loop
+      let buffer = '';
+      const decoder = new TextDecoder();
+      while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+              setIsTyping(false); // Use local state update
+              break;
+          }
+
+          if (!streamHasStarted) {
+              // Assuming setLoading(false) is not needed here based on useChat structure
+              setIsTyping(true); // Use local state update
+              streamHasStarted = true;
+          }
+
+          // Add the new data to our buffer
+          buffer += decoder.decode(value, { stream: true });
+
+          // Process all complete events in the buffer
+          let boundary;
+          while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+              const eventString = buffer.slice(0, boundary);
+              buffer = buffer.slice(boundary + 2); // Move past the processed event
+
+              if (eventString.startsWith('data: ')) {
+                  try {
+                      const jsonData = eventString.slice(6); // Remove 'data: '
+                      const parsedData = JSON.parse(jsonData);
+                      if (parsedData.content) {
+                          targetTextRef.current += parsedData.content; // Append to ref for text reveal
+                          fullAssistantResponse += parsedData.content; // Accumulate full response for final save
+                      }
+                  } catch (e) {
+                      console.error("Error parsing stream JSON:", e);
+                  }
+              }
+          }
+      }
+
+      // 1. Create conversation if it doesn't exist (moved here to ensure currentConversationId is set before saving messages)
+      if (!currentConversationId) {
         console.log('No active conversation, creating new one for user:', userId);
-      const { data: newConversation, error: createConvError } = await supabase
-        .from('conversations')
+        const { data: newConversation, error: createConvError } = await supabase
+          .from('conversations')
           .insert({ user_id: userId, title: text.substring(0, 50) })
-        .select()
-        .single();
+          .select()
+          .single();
 
         if (createConvError) throw new Error(`Supabase error creating conversation: ${createConvError.message}`);
         if (!newConversation) throw new Error('Failed to create or retrieve new conversation ID.');
@@ -330,17 +402,14 @@ Timestamp: ${new Date().toISOString()}
       if (userMsgError) throw new Error(`Supabase error saving user message: ${userMsgError.message}`);
       console.log('User message saved successfully.');
 
-      // --- MOCK API CALL FOR LOCAL TESTING ---
-      console.log("API disabled for testing");
-      // Simulate API response for testing
-      // setTimeout(() => {
-      //   const mockResponse = { content: "Mock AI response for testing" };
-      //   setMessages(prev => prev.map(msg =>
-      //     msg.id === assistantMessageId ? { ...msg, text: mockResponse.content } : msg
-      //   ));
-      //   setIsTyping(false);
-      //   setIsGenerating(false);
-      // }, 1000);
+      // 3. Save Assistant Message to Supabase (only once, after stream completes)
+      console.log(`Saving assistant message to conversation ${currentConversationId}...`);
+      const { error: assistantMsgError } = await supabase
+          .from('messages')
+          .insert({ conversation_id: currentConversationId, content: fullAssistantResponse, sender: 'ai', user_id: userId });
+
+      if (assistantMsgError) throw new Error(`Supabase error saving assistant message: ${assistantMsgError.message}`);
+      console.log('Assistant message saved successfully.');
 
     } catch (error: any) {
       console.error("DEV_LOG: Error occurred within sendMessage try block:", error);
