@@ -183,71 +183,6 @@ export function useChat(userProfile: UserProfile) { // Receive UserProfile direc
     };
   }, [stopTextReveal]); // Dependency is correct
 
-  // Effect to handle the text reveal animation interval
-  useEffect(() => {
-    // This effect should only run when a message stream *starts*
-    // We use streamingMessageIdRef.current as a trigger
-    if (streamingMessageIdRef.current === null || revealIntervalRef.current !== null) {
-        // No stream active, or interval already running
-        return;
-    }
-
-    // Function to perform one step of the reveal
-    const revealStep = () => {
-      setMessages(prevMessages => {
-        const streamingMsgId = streamingMessageIdRef.current;
-        if (streamingMsgId === null) {
-            stopTextReveal(); // Should not happen if interval is running, but safeguard
-            return prevMessages;
-        }
-
-        const streamingMsgIndex = prevMessages.findIndex(msg => msg.id === streamingMsgId);
-        if (streamingMsgIndex === -1) {
-           stopTextReveal(); // Message disappeared?
-           return prevMessages;
-        }
-
-        const targetWords = targetTextRef.current.split(/(\s+)/); // Split by space, keeping spaces
-        const currentWordIndex = currentWordIndexRef.current;
-
-        if (currentWordIndex >= targetWords.length) {
-           // Reached end of currently known text.
-           // Check if stream is finished (isGenerating is false)
-           // We need access to isGenerating state here. This might require restructuring
-           // or passing isGenerating to this effect's dependencies.
-           // For now, assume the interval should stop if it hits the end *and* isGenerating is false.
-           // A better approach might be needed.
-           // Let's temporarily stop if we hit the end, assuming stream might add more later.
-           // The `while (true)` loop finishing sets the final text anyway.
-           // stopTextReveal(); // Let's NOT stop here, allow stream to add more
-           return prevMessages; // Just wait for more target text
-        }
-
-        // Build the text to display up to the current word
-        const displayedText = targetWords.slice(0, currentWordIndex + 1).join('');
-        currentWordIndexRef.current += 1; // Move to the next word/space
-
-        // Update the specific message
-        const updatedMessages = [...prevMessages];
-        updatedMessages[streamingMsgIndex] = {
-           ...updatedMessages[streamingMsgIndex],
-           text: displayedText,
-        };
-        return updatedMessages;
-      });
-    };
-
-    // Start the interval
-    revealIntervalRef.current = setInterval(revealStep, REVEAL_SPEED_MS);
-
-    // Cleanup function for *this specific effect instance*
-    return () => {
-        // The main interval cleanup is handled globally by stopTextReveal
-        // No cleanup needed here unless this effect itself sets up something temporary
-    };
-    // Dependency: run when a new stream starts
-  }, [streamingMessageIdRef.current, stopTextReveal]); // Depend on the ID and the stop function
-
   const sendMessage = useCallback(async (text: string) => {
     console.log(`
 --- DEV_LOG: sendMessage START ---
@@ -293,7 +228,7 @@ Timestamp: ${new Date().toISOString()}
 
     // Construct payload for the backend API call with the updated state
     // messagesForBackend will now correctly include the user message and placeholder
-    const messagesForBackend = [...messages, userMessage, assistantMessagePlaceholder];
+    const finalMessagesForBackend = [...messages, userMessage];
     const token = session?.access_token; // Get the access token
 
     if (!token) {
@@ -303,8 +238,6 @@ Timestamp: ${new Date().toISOString()}
     setIsTyping(true);
     setIsGenerating(true);
     streamingMessageIdRef.current = assistantMessageId;
-    targetTextRef.current = ""; 
-    currentWordIndexRef.current = 0;
     let currentConversationId = conversationIdRef.current;
     let fullAssistantResponse = "";
 
@@ -316,7 +249,7 @@ Timestamp: ${new Date().toISOString()}
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ 
-          messages: messagesForBackend, 
+          messages: finalMessagesForBackend, 
           conversationId: currentConversationId, // Pass the conversation ID
           userId: userId // Pass the user ID
         }),
@@ -366,7 +299,9 @@ Timestamp: ${new Date().toISOString()}
                       const jsonData = eventString.slice(6); // Remove 'data: '
                       const parsedData = JSON.parse(jsonData);
                       if (parsedData.content) {
-                          targetTextRef.current += parsedData.content; // Append to ref for text reveal
+                          setMessages(prevMessages => prevMessages.map(msg =>
+                            msg.id === assistantMessageId ? { ...msg, text: msg.text + parsedData.content } : msg
+                          ));
                           fullAssistantResponse += parsedData.content; // Accumulate full response for final save
                       }
                   } catch (e) {
@@ -425,7 +360,7 @@ Timestamp: ${new Date().toISOString()}
         // Ensure the potentially incomplete response is shown with error context
         fullAssistantResponse += `\n[Error: ${error.message || "Failed to complete generation."}]`; 
       }
-      // Ensure typing/generating indicators are off even if stream was aborted/errored early
+      // Ensure typing/generating indicators are off even if stream was aborted/ered early
       setIsTyping(false); 
     } finally {
       // This block runs whether try succeeded or failed
@@ -446,7 +381,7 @@ Timestamp: ${new Date().toISOString()}
       // Note: Supabase saves happen *within* the try block upon success now.
     }
 
-  }, [messages, stopTextReveal, userProfile, userId, isSending]);
+  }, [messages, stopTextReveal, userProfile, userId, isSending, session]); // Added session to dependencies
 
   const updateMessageFeedback = useCallback((messageId: string, feedback: Message['feedback']) => {
     setMessages(prev => prev.map(msg =>
@@ -489,72 +424,71 @@ Timestamp: ${new Date().toISOString()}
 
   // Renamed original clearChat to reflect it only resets frontend state
   const resetFrontendChatState = useCallback(() => {
-    stopTextReveal();
-    abortControllerRef.current?.abort();
-    const welcomeMessage: Message = {
-      id: generateUniqueId(),
-      text: `Ah, welcome ${userProfile.name}! I see you've come seeking guidance about ${userProfile.transformationIntent || 'your journey'}. Let's explore this scene in your reality film together.`,
-      sender: "tufti",
-      timestamp: new Date()
-    };
-    setMessages([welcomeMessage]); 
+    setMessages([]);
+    setChatError(null);
+    setIsTyping(false);
+    setIsGenerating(false);
+    setIsSending(false);
     conversationIdRef.current = null;
-    setIsLoadingHistory(false); 
-    setChatError(null); // Also clear errors on reset
-    console.log('Frontend chat state reset.');
-  }, [stopTextReveal, userProfile]);
+  }, [stopTextReveal]);
 
-  // --- New Function: Delete Conversation --- 
-  const deleteCurrentConversation = useCallback(async () => {
-    const conversationId = conversationIdRef.current;
-    if (!conversationId) {
-      console.warn("Attempted to delete conversation, but no conversation ID is set.");
-      setChatError("No active conversation to delete.");
+  const clearChat = useCallback(async () => {
+    setChatError(null); // Clear any existing chat errors
+    setIsTyping(false);
+    setIsGenerating(false);
+    setIsSending(false);
+    stopTextReveal();
+
+    if (!userId) {
+      console.error("Cannot clear chat: User not identified.");
+      setChatError("Failed to clear chat: User not identified.");
       return;
     }
 
-    // Confirmation Dialog
-    if (!window.confirm("Are you sure you want to permanently delete this conversation and all its messages?")) {
-      return; // User cancelled
+    // If there's an active conversation, mark it as inactive (soft delete)
+    if (conversationIdRef.current) {
+      console.log('Attempting to mark conversation as inactive:', conversationIdRef.current);
+      try {
+        const { error: updateError } = await supabase
+          .from('conversations')
+          .update({ is_active: false })
+          .eq('id', conversationIdRef.current);
+
+        if (updateError) {
+          throw new Error(`Supabase error marking conversation inactive: ${updateError.message}`);
+        }
+        console.log('Conversation marked inactive successfully.');
+      } catch (error: any) {
+        console.error('Error marking conversation inactive:', error.message);
+        setChatError(`Failed to clear chat: ${error.message}`);
+        return; // Stop if there's an error
+      }
     }
 
-    console.log(`Attempting to delete conversation: ${conversationId}`);
-    setChatError(null); // Clear previous errors
-    // Optionally set a loading state here if needed
-    // setIsLoadingHistory(true); 
+    // After successful soft delete (or if no conversation), clear frontend state
+    setMessages([]);
+    conversationIdRef.current = null; // Ensure conversation ID is reset for new chat
+    // Re-add initial welcome message
+    const welcomeMessage: Message = {
+      id: generateUniqueId(),
+      text: `Welcome back, ${userProfile.name}! Ready for another journey into your reality film?`,
+      sender: "tufti",
+      timestamp: new Date()
+    };
+    setMessages([welcomeMessage]);
 
-    try {
-      const { error } = await supabase
-        .from('conversations')
-        .delete()
-        .eq('id', conversationId);
-
-      if (error) throw error;
-
-      console.log(`Conversation ${conversationId} deleted successfully.`);
-      // Reset frontend state after successful deletion
-      resetFrontendChatState(); 
-
-    } catch (error: any) {
-      console.error("Error deleting conversation:", error.message);
-      setChatError(`Failed to delete conversation: ${error.message}`);
-      // Optionally reset loading state here if set
-      // setIsLoadingHistory(false);
-    }
-
-  }, [resetFrontendChatState]); // Dependency on the reset function
+  }, [userId, userProfile.name, stopTextReveal]);
 
   return {
     messages,
-    isLoadingHistory, // Expose history loading state
+    isLoadingHistory,
     isTyping,
     isGenerating,
-    isSending, // Expose isSending state
-    chatError, // <-- Return error state
+    isSending,
+    chatError,
     sendMessage,
     updateMessageFeedback,
     retryLastMessage,
-    clearChat: deleteCurrentConversation, // Expose delete function as clearChat
-    // OR: expose both if needed: deleteCurrentConversation, resetFrontendChatState
+    clearChat,
   }
 }
