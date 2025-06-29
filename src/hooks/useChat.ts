@@ -1,3 +1,4 @@
+// Forcing re-deployment with live API call enabled (Attempt 5).
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'; // Import Supabase client
 import type { Message, UserProfile } from '@/lib/types'
@@ -9,6 +10,7 @@ const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || '/api/chat';
 
 // Speed for revealing text (milliseconds per word)
 const REVEAL_SPEED_MS = 50;
+const REQUEST_TIMEOUT_MS = 60000; // 60 seconds timeout for API requests
 
 // REMOVE Placeholder user ID
 // const TEST_USER_ID = '00000000-0000-0000-0000-000000000001'; 
@@ -215,6 +217,8 @@ Timestamp: ${new Date().toISOString()}
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    let timeoutId: NodeJS.Timeout | null = null; // Declare timeoutId
+
     // Prepare User Message with local string ID
     const userMessageId = generateUniqueId(); 
     const userMessage: Message = { id: userMessageId, text, sender: "user", timestamp: new Date() };
@@ -242,6 +246,15 @@ Timestamp: ${new Date().toISOString()}
     let fullAssistantResponse = "";
 
     try {
+      // Set a timeout for the fetch request
+      timeoutId = setTimeout(() => {
+        if (abortControllerRef.current) {
+          console.warn("DEV_LOG: API request timed out, aborting fetch.");
+          abortControllerRef.current.abort();
+          setChatError("API request timed out. Please try again.");
+        }
+      }, REQUEST_TIMEOUT_MS);
+
       const response = await fetch(BACKEND_API_URL, {
         method: 'POST',
         headers: {
@@ -257,8 +270,15 @@ Timestamp: ${new Date().toISOString()}
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`API error: ${errorData.message || response.statusText}`);
+        // Attempt to parse error data from response
+        let errorDetails = response.statusText;
+        try {
+          const errorData = await response.json();
+          errorDetails = errorData.message || JSON.stringify(errorData);
+        } catch (parseError) {
+          console.error("DEV_LOG: Failed to parse API error response as JSON:", parseError);
+        }
+        throw new Error(`API error: ${errorDetails}`);
       }
 
       const reader = response.body?.getReader();
@@ -351,18 +371,25 @@ Timestamp: ${new Date().toISOString()}
       // Catch errors from Supabase, fetch, or stream processing
       if (error.name === 'AbortError') {
         console.log('Fetch aborted.');
-        setChatError("Message generation cancelled.");
+        if (error.message.includes("timed out")) { // Check for custom timeout message
+            setChatError("API request timed out. Please try again.");
+        } else {
+            setChatError("Message generation cancelled.");
+        }
         // Optionally remove the placeholder if desired
         // setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId)); 
        } else {
         console.error('Error during sendMessage process:', error);
-        setChatError(`Error: ${error.message || "An unknown error occurred."}`);
-        // Ensure the potentially incomplete response is shown with error context
-        fullAssistantResponse += `\n[Error: ${error.message || "Failed to complete generation."}]`; 
+        // Set a more informative error message.
+        setChatError(`Error: ${error.message || "An unexpected error occurred during API communication. Please check your network and try again."}`); 
       }
       // Ensure typing/generating indicators are off even if stream was aborted/ered early
       setIsTyping(false); 
     } finally {
+      // Clear the timeout if it was set
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       // This block runs whether try succeeded or failed
       stopTextReveal(); 
       // Final UI update to ensure text is fully displayed, even if error occurred mid-stream
@@ -423,15 +450,6 @@ Timestamp: ${new Date().toISOString()}
   }, [sendMessage, stopTextReveal]);
 
   // Renamed original clearChat to reflect it only resets frontend state
-  const resetFrontendChatState = useCallback(() => {
-    setMessages([]);
-    setChatError(null);
-    setIsTyping(false);
-    setIsGenerating(false);
-    setIsSending(false);
-    conversationIdRef.current = null;
-  }, [stopTextReveal]);
-
   const clearChat = useCallback(async () => {
     setChatError(null); // Clear any existing chat errors
     setIsTyping(false);
