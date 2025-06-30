@@ -246,169 +246,155 @@ Timestamp: ${new Date().toISOString()}
     let fullAssistantResponse = "";
 
     try {
+      setIsGenerating(true);
+      console.log("--- DEV_LOG: LIVE API CALL INITIATED ---");
+
+      // The rest of your existing fetch and streaming logic goes here...
+      // Ensure the fetch('/api/chat', ...) is present and active.
+
       // Set a timeout for the fetch request
       timeoutId = setTimeout(() => {
-        if (abortControllerRef.current) {
-          console.warn("DEV_LOG: API request timed out, aborting fetch.");
-          abortControllerRef.current.abort();
-          setChatError("API request timed out. Please try again.");
-        }
+        controller.abort();
+        console.error("API request timed out.");
+        setChatError("API request timed out. Please try again.");
+        setIsGenerating(false);
+        setIsSending(false);
       }, REQUEST_TIMEOUT_MS);
 
       const response = await fetch(BACKEND_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${token}` 
         },
-        body: JSON.stringify({ 
-          messages: finalMessagesForBackend, 
-          conversationId: currentConversationId, // Pass the conversation ID
-          userId: userId // Pass the user ID
+        body: JSON.stringify({
+          messages: finalMessagesForBackend.map(msg => ({ 
+            content: msg.text, 
+            role: msg.sender === 'user' ? 'user' : 'assistant' 
+          })),
+          userProfile: userProfile,
+          conversationId: currentConversationId,
+          systemPrompt: TUFTI_SYSTEM_PROMPT
         }),
-        signal: controller.signal,
+        signal: controller.signal, 
       });
 
       if (!response.ok) {
-        // Attempt to parse error data from response
-        let errorDetails = response.statusText;
+        let errorData;
         try {
-          const errorData = await response.json();
-          errorDetails = errorData.message || JSON.stringify(errorData);
-        } catch (parseError) {
-          console.error("DEV_LOG: Failed to parse API error response as JSON:", parseError);
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: response.statusText };
         }
-        throw new Error(`API error: ${errorDetails}`);
+        throw new Error(`API error: ${errorData.message || response.statusText}`);
+      }
+
+      // Check for streamable content-type
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("text/event-stream")) {
+          // Handle non-streaming responses, if any expected (e.g., immediate errors)
+          const data = await response.json();
+          console.warn("Received non-streaming response:", data);
+          fullAssistantResponse = data.message || "An unexpected response was received.";
+          // Update messages immediately if not streaming
+          setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                  msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
+              )
+          );
+          setIsGenerating(false);
+          setIsSending(false); // Ensure sending state is reset
+          if (timeoutId) clearTimeout(timeoutId);
+          return;
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error("Failed to get stream reader.");
+        throw new Error("Failed to get reader from response body.");
       }
 
-      let streamHasStarted = false;
-      let botReplyMessageId = assistantMessageId; // Use the same ID for chunks
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
       
-      // Corrected SSE parsing loop
-      let buffer = '';
-      const decoder = new TextDecoder();
       while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-              setIsTyping(false); // Use local state update
-              break;
-          }
+        const { value, done } = await reader.read();
+        if (done) {
+          console.log("Stream finished.");
+          break;
+        }
 
-          if (!streamHasStarted) {
-              // Assuming setLoading(false) is not needed here based on useChat structure
-              setIsTyping(true); // Use local state update
-              streamHasStarted = true;
-          }
+        buffer += decoder.decode(value, { stream: true });
 
-          // Add the new data to our buffer
-          buffer += decoder.decode(value, { stream: true });
+        // Process all complete messages in the buffer
+        let lastNewlineIndex;
+        while ((lastNewlineIndex = buffer.indexOf("\n")) !== -1) {
+            const jsonLine = buffer.substring(0, lastNewlineIndex).trim();
+            buffer = buffer.substring(lastNewlineIndex + 1);
 
-          // Process all complete events in the buffer
-          let boundary;
-          while ((boundary = buffer.indexOf('\n\n')) >= 0) {
-              const eventString = buffer.slice(0, boundary);
-              buffer = buffer.slice(boundary + 2); // Move past the processed event
+            if (jsonLine.startsWith("data:")) {
+                const dataString = jsonLine.substring(5).trim();
+                if (dataString === "[DONE]") {
+                    console.log("Stream sent DONE signal.");
+                    if (timeoutId) clearTimeout(timeoutId); // Clear timeout on DONE
+                    if (fullAssistantResponse.length > 0) {
+                      setMessages(prevMessages => 
+                          prevMessages.map(msg => 
+                              msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
+                          )
+                      );
+                    }
+                    reader.cancel(); // Close the stream from our side
+                    setIsTyping(false); // Stop typing indicator
+                    setIsGenerating(false); // Stop generation indicator
+                    setIsSending(false); // Reset sending state
+                    return; // Exit the function after DONE
+                }
 
-              if (eventString.startsWith('data: ')) {
-                  try {
-                      const jsonData = eventString.slice(6); // Remove 'data: '
-                      const parsedData = JSON.parse(jsonData);
-                      if (parsedData.content) {
-                          setMessages(prevMessages => prevMessages.map(msg =>
-                            msg.id === assistantMessageId ? { ...msg, text: msg.text + parsedData.content } : msg
-                          ));
-                          fullAssistantResponse += parsedData.content; // Accumulate full response for final save
-                      }
-                  } catch (e) {
-                      console.error("Error parsing stream JSON:", e);
-                  }
-              }
-          }
+                try {
+                    const parsedData = JSON.parse(dataString);
+                    // Handle conversationId update
+                    if (parsedData.conversationId && !conversationIdRef.current) {
+                        conversationIdRef.current = parsedData.conversationId;
+                        console.log("Conversation ID set to:", conversationIdRef.current);
+                    }
+                    // Handle message content
+                    if (parsedData.token) {
+                      fullAssistantResponse += parsedData.token;
+                      // Update the specific message placeholder without affecting others
+                      setMessages(prevMessages => 
+                        prevMessages.map(msg => 
+                          msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
+                        )
+                      );
+                    }
+                } catch (parseError) {
+                    console.error("Error parsing stream data:", parseError, "Data:", dataString);
+                    setChatError("Failed to parse API response.");
+                }
+            }
+        }
       }
-
-      // 1. Create conversation if it doesn't exist (moved here to ensure currentConversationId is set before saving messages)
-      if (!currentConversationId) {
-        console.log('No active conversation, creating new one for user:', userId);
-        const { data: newConversation, error: createConvError } = await supabase
-          .from('conversations')
-          .insert({ user_id: userId, title: text.substring(0, 50) })
-          .select()
-          .single();
-
-        if (createConvError) throw new Error(`Supabase error creating conversation: ${createConvError.message}`);
-        if (!newConversation) throw new Error('Failed to create or retrieve new conversation ID.');
-        
-        console.log('Created new conversation:', newConversation.id);
-        conversationIdRef.current = newConversation.id;
-        currentConversationId = conversationIdRef.current; // Update local var
-      }
-
-      // 2. Save User Message to Supabase
-      console.log(`Saving user message to conversation ${currentConversationId}...`);
-      const { error: userMsgError } = await supabase
-        .from('messages')
-        .insert({ conversation_id: currentConversationId, content: text, sender: 'user', user_id: userId });
-
-      if (userMsgError) throw new Error(`Supabase error saving user message: ${userMsgError.message}`);
-      console.log('User message saved successfully.');
-
-      // 3. Save Assistant Message to Supabase (only once, after stream completes)
-      console.log(`Saving assistant message to conversation ${currentConversationId}...`);
-      const { error: assistantMsgError } = await supabase
-          .from('messages')
-          .insert({ conversation_id: currentConversationId, content: fullAssistantResponse, sender: 'ai', user_id: userId });
-
-      if (assistantMsgError) throw new Error(`Supabase error saving assistant message: ${assistantMsgError.message}`);
-      console.log('Assistant message saved successfully.');
 
     } catch (error: any) {
-      console.error("DEV_LOG: Error occurred within sendMessage try block:", error);
-      // Catch errors from Supabase, fetch, or stream processing
+      console.error("API Call Failed:", error);
+      if (timeoutId) clearTimeout(timeoutId); // Clear timeout on error
       if (error.name === 'AbortError') {
-        console.log('Fetch aborted.');
-        if (error.message.includes("timed out")) { // Check for custom timeout message
-            setChatError("API request timed out. Please try again.");
-        } else {
-            setChatError("Message generation cancelled.");
-        }
-        // Optionally remove the placeholder if desired
-        // setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId)); 
-       } else {
-        console.error('Error during sendMessage process:', error);
-        // Set a more informative error message.
-        setChatError(`Error: ${error.message || "An unexpected error occurred during API communication. Please check your network and try again."}`); 
+        console.log("Fetch aborted by user or timeout.");
+        setChatError("Message sending was cancelled.");
+      } else {
+        setChatError(`Failed to send message: ${error.message}`);
       }
-      // Ensure typing/generating indicators are off even if stream was aborted/ered early
-      setIsTyping(false); 
+      setIsGenerating(false);
     } finally {
-      // Clear the timeout if it was set
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      // This block runs whether try succeeded or failed
-      stopTextReveal(); 
-      // Final UI update to ensure text is fully displayed, even if error occurred mid-stream
-      setMessages(prev => prev.map(msg => 
-        msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
-      ));
-      setIsGenerating(false); // Clear generating flag
-      streamingMessageIdRef.current = null; 
-      abortControllerRef.current = null;
-      setIsSending(false); // Clear sending state
-      console.log(`
---- DEV_LOG: sendMessage FINALLY block completed ---
-Timestamp: ${new Date().toISOString()}
----
-`);
-      // Note: Supabase saves happen *within* the try block upon success now.
+      if (timeoutId) clearTimeout(timeoutId); // Ensure timeout is cleared
+      setIsGenerating(false);
+      setIsSending(false); // Always reset sending state
+      setIsTyping(false); // Ensure typing is off after attempt
+      abortControllerRef.current = null; // Clear controller ref
+      stopTextReveal();
+      console.log("--- DEV_LOG: sendMessage END (finally block) ---");
     }
-
-  }, [messages, stopTextReveal, userProfile, userId, isSending, session]); // Added session to dependencies
+  }, [messages, userId, stopTextReveal, session, userProfile, generateUniqueId, setMessages, setIsTyping, setIsGenerating, setChatError, setIsSending]); // Add all dependencies
 
   const updateMessageFeedback = useCallback((messageId: string, feedback: Message['feedback']) => {
     setMessages(prev => prev.map(msg =>
