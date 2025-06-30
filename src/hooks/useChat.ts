@@ -387,12 +387,13 @@ Timestamp: ${new Date().toISOString()}
       setIsGenerating(false);
     } finally {
       if (timeoutId) clearTimeout(timeoutId); // Ensure timeout is cleared
-      setIsGenerating(false);
-      setIsSending(false); // Always reset sending state
-      setIsTyping(false); // Ensure typing is off after attempt
-      abortControllerRef.current = null; // Clear controller ref
       stopTextReveal();
-      console.log("--- DEV_LOG: sendMessage END (finally block) ---");
+      setIsGenerating(false);
+      streamingMessageIdRef.current = null;
+      abortControllerRef.current = null;
+      setIsSending(false);
+      setIsTyping(false); // Ensure typing is off after attempt
+      console.log(`--- DEV_LOG: sendMessage FINALLY block completed ---`);
     }
   }, [messages, userId, stopTextReveal, session, userProfile, generateUniqueId, setMessages, setIsTyping, setIsGenerating, setChatError, setIsSending]); // Add all dependencies
 
