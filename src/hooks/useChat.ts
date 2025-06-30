@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || '/api/chat';
 
 // Speed for revealing text (milliseconds per word)
-const REVEAL_SPEED_MS = 50;
 const REQUEST_TIMEOUT_MS = 60000; // 60 seconds timeout for API requests
 
 // REMOVE Placeholder user ID
