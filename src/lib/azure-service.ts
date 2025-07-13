@@ -1,38 +1,12 @@
-import { OpenAIClient, AzureKeyCredential } from "@azure/openai"
 import { azureConfig } from "./ai-config"
 import { TUFTI_SYSTEM_PROMPT } from "./tufti"
 import type { Message, UserProfile } from "./types"
 
 export class AzureService {
   private static instance: AzureService
-  private client: OpenAIClient | null = null
 
-  private constructor() {
-    const { endpoint, apiKey, deploymentName } = azureConfig
-
-    if (!endpoint || !apiKey) {
-      console.error("Azure OpenAI endpoint or API key not found")
-      return
-    }
-
-    if (!deploymentName) {
-      console.error("Azure deployment name not configured")
-      return
-    }
-
-    try {
-      // Ensure endpoint doesn't end with a slash for proper URL construction
-      const baseEndpoint = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint
-      
-      // Log the full endpoint URL for debugging
-      console.log(`Initializing Azure OpenAI client with endpoint: ${baseEndpoint}/openai/deployments/${deploymentName}/chat/completions`)
-      
-      this.client = new OpenAIClient(endpoint, new AzureKeyCredential(apiKey))
-      console.log("Azure OpenAI client initialized successfully")
-    } catch (error) {
-      console.error("Failed to initialize Azure OpenAI client:", error)
-      this.client = null
-    }
+  private constructor() { 
+    // No direct client initialization needed anymore, as we're hitting our Netlify Function
   }
 
   static getInstance(): AzureService {
@@ -43,14 +17,8 @@ export class AzureService {
   }
 
   async generateResponse(userMessage: string, context: Message[], userProfile?: UserProfile): Promise<string> {
-    if (!this.client) {
-      throw new Error("Azure OpenAI client not initialized. Please check your credentials and deployment configuration.")
-    }
-
-    const { deploymentName } = azureConfig
-
     try {
-      const messages = [
+      const messagesToSend = [
         { role: "system", content: TUFTI_SYSTEM_PROMPT },
         ...(userProfile ? [{
           role: "system",
@@ -63,29 +31,60 @@ export class AzureService {
         { role: "user", content: userMessage }
       ]
 
-      const response = await this.client.getChatCompletions(
-        deploymentName,
-        messages,
-        {
-          temperature: 0.7,
-          maxTokens: 1500,
-          topP: 0.92,
-          frequencyPenalty: 0.18,
-          presencePenalty: 0.15
-        }
-      )
+      const response = await fetch(azureConfig.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messages: messagesToSend, systemPrompt: TUFTI_SYSTEM_PROMPT })
+      });
 
-      const generatedText = response.choices[0]?.message?.content
-      if (!generatedText) {
-        throw new Error("No response generated")
+      if (!response.ok || !response.body) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
+        throw new Error(`Server error: ${response.status} ${response.statusText} - ${errorData.error || 'No additional details'}`);
       }
 
-      console.log("Successfully generated response from Azure OpenAI")
-      return generatedText
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let generatedText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        // Split by data: and newlines, filter empty strings
+        const lines = chunk.split(/\r?\n+/).filter(line => line.startsWith('data:'));
+
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
+            const jsonStr = line.substring(5).trim();
+            if (jsonStr) {
+              try {
+                const data = JSON.parse(jsonStr);
+                if (data.content) {
+                  generatedText += data.content;
+                  // Here you might want to emit events or use a callback to update UI with streaming text
+                  // For now, we'll just build the full text and return at the end.
+                } else if (data.error) {
+                  throw new Error(`Stream error: ${data.error}`);
+                }
+              } catch (e) {
+                console.error("Failed to parse JSON from stream chunk:", jsonStr, e);
+                // Continue processing other chunks even if one fails
+              }
+            }
+          }
+        }
+      }
+
+      console.log("Successfully received full response from Netlify Function");
+      return generatedText;
+
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
-      console.error("Failed to generate response from Azure OpenAI:", errorMessage)
-      throw error
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Failed to generate response via Netlify Function:", errorMessage);
+      throw error;
     }
   }
 }
