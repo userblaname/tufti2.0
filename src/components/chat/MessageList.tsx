@@ -18,6 +18,7 @@ interface MessageListProps {
 }
 
 const MessageList = memo(({ messages, isTyping, onRetry, onFeedback, className }: MessageListProps) => {
+  console.log("MessageList rendering. Messages:", messages);
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [loadMoreRef, inView] = useInView()
   const lastMessageRef = useRef<HTMLDivElement>(null)

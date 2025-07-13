@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || '/api/chat';
 
 // Speed for revealing text (milliseconds per word)
+const REVEAL_SPEED_MS = 50;
 const REQUEST_TIMEOUT_MS = 60000; // 60 seconds timeout for API requests
 
 // REMOVE Placeholder user ID
@@ -201,6 +202,7 @@ Timestamp: ${new Date().toISOString()}
 
     setChatError(null);
     setIsSending(true); // Set sending state
+    console.log("DEV_LOG: After setIsSending(true). isSending:", true, "isTyping:", isTyping, "isGenerating:", isGenerating);
     
     if (!userId) { 
         console.error("Attempted to send message without a user ID.");
@@ -240,12 +242,14 @@ Timestamp: ${new Date().toISOString()}
 
     setIsTyping(true);
     setIsGenerating(true);
+    console.log("DEV_LOG: After setIsTyping(true) and setIsGenerating(true). isSending:", isSending, "isTyping:", true, "isGenerating:", true);
     streamingMessageIdRef.current = assistantMessageId;
     let currentConversationId = conversationIdRef.current;
     let fullAssistantResponse = "";
 
     try {
       setIsGenerating(true);
+      console.log("DEV_LOG: Before API call in try block. isGenerating:", true);
       console.log("--- DEV_LOG: LIVE API CALL INITIATED ---");
 
       // The rest of your existing fetch and streaming logic goes here...
@@ -258,6 +262,7 @@ Timestamp: ${new Date().toISOString()}
         setChatError("API request timed out. Please try again.");
         setIsGenerating(false);
         setIsSending(false);
+        console.log("DEV_LOG: Timeout triggered. isSending:", false, "isGenerating:", false);
       }, REQUEST_TIMEOUT_MS);
 
       const response = await fetch(BACKEND_API_URL, {
@@ -335,64 +340,51 @@ Timestamp: ${new Date().toISOString()}
                 if (dataString === "[DONE]") {
                     console.log("Stream sent DONE signal.");
                     if (timeoutId) clearTimeout(timeoutId); // Clear timeout on DONE
-                    if (fullAssistantResponse.length > 0) {
-                      setMessages(prevMessages => 
-                          prevMessages.map(msg => 
-                              msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
-                          )
-                      );
-                    }
+                    // The final update is handled below by fullAssistantResponse being set
                     reader.cancel(); // Close the stream from our side
-                    setIsTyping(false); // Stop typing indicator
-                    setIsGenerating(false); // Stop generation indicator
-                    setIsSending(false); // Reset sending state
-                    return; // Exit the function after DONE
-                }
-
-                try {
-                    const parsedData = JSON.parse(dataString);
-                    // Handle conversationId update
-                    if (parsedData.conversationId && !conversationIdRef.current) {
-                        conversationIdRef.current = parsedData.conversationId;
-                        console.log("Conversation ID set to:", conversationIdRef.current);
+                    break; // Exit the while loop
+                } else {
+                    try {
+                        const parsedData = JSON.parse(dataString);
+                        const content = parsedData.content; // Assuming 'content' key
+                        if (content) {
+                            fullAssistantResponse += content;
+                            // Immediately update messages state with the current partial response
+                            setMessages(prevMessages =>
+                                prevMessages.map(msg =>
+                                    msg.id === streamingMessageIdRef.current ? { ...msg, text: fullAssistantResponse } : msg
+                                )
+                            );
+                            console.log("DEV_LOG: Streaming content update. Current message text length:", fullAssistantResponse.length);
+                        }
+                    } catch (parseError) {
+                        console.error("Failed to parse JSON line from stream:", parseError, "Line:", dataString);
+                        // Potentially handle malformed data by skipping or logging
                     }
-                    // Handle message content
-                    if (parsedData.token) {
-                      fullAssistantResponse += parsedData.token;
-                      // Update the specific message placeholder without affecting others
-                      setMessages(prevMessages => 
-                        prevMessages.map(msg => 
-                          msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
-                        )
-                      );
-                    }
-                } catch (parseError) {
-                    console.error("Error parsing stream data:", parseError, "Data:", dataString);
-                    setChatError("Failed to parse API response.");
                 }
+            } else {
+                 console.log("DEV_LOG: Received non-data stream line:", jsonLine);
             }
         }
       }
 
     } catch (error: any) {
-      console.error("API Call Failed:", error);
-      if (timeoutId) clearTimeout(timeoutId); // Clear timeout on error
-      if (error.name === 'AbortError') {
-        console.log("Fetch aborted by user or timeout.");
-        setChatError("Message sending was cancelled.");
-      } else {
-        setChatError(`Failed to send message: ${error.message}`);
-      }
+      console.error('Error during sendMessage process:', error.message);
+      setChatError(`Failed to send message: ${error.message}`);
+      // Ensure all flags are reset on error
+      setIsTyping(false);
       setIsGenerating(false);
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId); // Ensure timeout is cleared
-      stopTextReveal();
-      setIsGenerating(false);
-      streamingMessageIdRef.current = null;
-      abortControllerRef.current = null;
       setIsSending(false);
-      setIsTyping(false); // Ensure typing is off after attempt
-      console.log(`--- DEV_LOG: sendMessage FINALLY block completed ---`);
+      stopTextReveal();
+      console.log("DEV_LOG: Error caught. isSending:", false, "isTyping:", false, "isGenerating:", false);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId); // Ensure timeout is cleared on success or error
+      abortControllerRef.current = null; // Clear the abort controller reference
+      setIsTyping(false); // Stop typing indicator
+      setIsGenerating(false); // Stop generation indicator
+      setIsSending(false); // Reset sending state
+      console.log("DEV_LOG: sendMessage END (finally block). isSending:", false, "isTyping:", false, "isGenerating:", false);
+      console.log("--- DEV_LOG: sendMessage END (finally block) ---\n");
     }
   }, [messages, userId, stopTextReveal, session, userProfile, generateUniqueId, setMessages, setIsTyping, setIsGenerating, setChatError, setIsSending]); // Add all dependencies
 

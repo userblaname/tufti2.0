@@ -1,4 +1,3 @@
-// Final check for deployment
 const express = require('express');
 const { AzureOpenAI } = require('openai');
 const dotenv = require('dotenv');
@@ -42,20 +41,24 @@ app.use(express.static(path.join(__dirname, '..', 'dist')));
 app.post('/api/chat', async (req, res) => {
   let streamFinishedNaturally = false; // Flag to track stream completion
   try {
-    const { messages } = req.body;
+    const { messages, systemPrompt } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Invalid request body: "messages" array is required.' });
     }
 
-    console.log(`Received ${messages.length} messages.`); // Restored log
-    // console.log("First few messages:", JSON.stringify(messages.slice(0, 2), null, 2));
+    const messagesToSend = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...messages] : messages;
+
+    console.log(`Received ${messages.length} messages.`);
+    if (systemPrompt) {
+        console.log(`Applying system prompt: ${systemPrompt.substring(0, 50)}...`);
+    }
 
     // --- Restore Azure call and streaming --- 
     console.log(`Calling Azure OpenAI...`);
     const stream = await client.chat.completions.create({
-        deployment: deployment,
-        messages: messages,
+        model: deployment,
+        messages: messagesToSend,
         stream: true,
         max_tokens: 800, // Restore params if needed
         temperature: 1.0,
@@ -73,7 +76,6 @@ app.post('/api/chat', async (req, res) => {
 
     console.log("Starting stream iteration..."); // Log before loop
     for await (const chunk of stream) {
-        // console.log("Stream chunk received:", JSON.stringify(chunk)); // Very verbose log, uncomment if needed
         if (chunk.choices && chunk.choices[0]?.delta?.content) {
             const content = chunk.choices[0].delta.content;
             console.log("Streaming content chunk:", content); // Log content chunk
@@ -82,7 +84,6 @@ app.post('/api/chat', async (req, res) => {
                 res.flush(); // Attempt to flush buffer
             }
         } else {
-             // Log if chunk doesn't contain expected content
              console.log("Received stream chunk without expected content structure.");
         }
     }
@@ -90,14 +91,10 @@ app.post('/api/chat', async (req, res) => {
     console.log("Finished stream iteration (for await loop completed).");
     // --- END Restore --- 
 
-    // Remove the dummy response
-    // console.log("Sending immediate dummy response.");
-    // res.status(200).json({ message: "Azure call bypassed for debug." });
-
     res.end(); // End the response after the stream finishes
 
   } catch (error) {
-    console.error('Error during /api/chat processing:', error); 
+    console.error('Error during /api/chat processing:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2)); 
     // Ensure response ends even in catch block
     if (!res.headersSent) {
         // If error happened before headers sent (e.g., during Azure client call itself)
@@ -124,7 +121,19 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..' , 'dist', 'index.html'));
 });
 
+// --- Global Error Handling ---
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Application specific logging, cleanup, or exit
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Application specific logging, cleanup, or exit
+  process.exit(1); // Exit in case of uncaught exception to prevent undefined behavior
+});
+
 // --- Start Server ---
 app.listen(port, () => {
   console.log(`Backend server listening on http://localhost:${port}`);
-}); // Force redeploy Mon Jun 30 04:54:45 +01 2025
+});

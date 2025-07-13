@@ -10,6 +10,7 @@ interface MessageContentProps {
 }
 
 const MessageContent = memo(({ message, className }: MessageContentProps) => {
+  console.log("MessageContent rendering. Message text:", message.text);
   const isTuftiMessage = message.sender === "tufti";
   const isEmpty = isTuftiMessage && !message.text;
   
@@ -17,7 +18,8 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
   const content = isEmpty ? (
     <span className="inline-block ml-1">▋</span>
   ) : (
-    <ReactMarkdown>{message.text}</ReactMarkdown> 
+    // <ReactMarkdown>{message.text}</ReactMarkdown> 
+    <div>{message.text}</div>
   );
 
   // Conditional rendering based on sender

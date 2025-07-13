@@ -1,7 +1,7 @@
 import { OpenAIClient } from "@azure/openai"
 import { azureConfig, createAzureCredential } from "./config"
 import { TUFTI_SYSTEM_PROMPT } from "@/lib/tufti"
-import type { Message, UserProfile } from "@/lib/types"
+import type { UserProfile } from "@/lib/types"
 
 const MAX_CONTEXT_MESSAGES = 20
 
@@ -31,11 +31,12 @@ export class AzureService {
         { maxTokens: 1 }
       )
       return true
-    } catch (error) {
-      console.warn(`Azure initialization attempt ${attempt} failed:`, error)
-      const delay = this.initialRetryDelay * Math.pow(2, attempt - 1)
-      await new Promise(resolve => setTimeout(resolve, delay))
-      return this.initializeWithRetry(attempt + 1)
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string };
+      console.warn(`Azure initialization attempt ${attempt} failed:`, err);
+      const delay = this.initialRetryDelay * Math.pow(2, attempt - 1);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return this.initializeWithRetry(attempt + 1);
     }
   }
 
@@ -45,8 +46,9 @@ export class AzureService {
   ): Promise<T> {
     try {
       return await operation()
-    } catch (error) {
-      if (attempt > this.maxRetries || !this.shouldRetry(error)) {
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string };
+      if (attempt > this.maxRetries || !this.shouldRetry(err)) {
         throw error
       }
 
@@ -56,9 +58,9 @@ export class AzureService {
     }
   }
 
-  private shouldRetry(error: any): boolean {
+  private shouldRetry(error: { name?: string; code?: string }): boolean {
     const retryableCodes = ['REQUEST_SEND_ERROR', 'TIMEOUT_ERROR', 'NETWORK_ERROR']
-    return retryableCodes.includes(error?.code) || error?.name === 'AbortError'
+    return retryableCodes.includes(error?.code ?? '') || error?.name === 'AbortError'
   }
 
   private async streamWithRetry(
@@ -79,9 +81,9 @@ export class AzureService {
         topP: 0.92,
         frequencyPenalty: 0.18,
         presencePenalty: 0.15,
-        stop: ["Human:", "Assistant:"]
-      },
-      { signal: this.streamController?.signal }
+        stop: ["Human:", "Assistant:"],
+        abortSignal: this.streamController?.signal
+      }
     )
 
     try {
@@ -91,8 +93,9 @@ export class AzureService {
         onProgress?.(fullResponse)
       }
       return fullResponse
-    } catch (error) {
-      if (error?.name === 'AbortError') {
+    } catch (error: unknown) {
+      const err = error as { name?: string };
+      if (err?.name === 'AbortError') {
         throw new Error('Stream cancelled')
       }
       throw error
@@ -112,14 +115,17 @@ export class AzureService {
       throw new Error("Azure OpenAI endpoint not configured")
     }
 
-    // Ensure endpoint doesn't end with slash
     const cleanEndpoint = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint
 
     try {
-      this.client = new OpenAIClient(cleanEndpoint, createAzureCredential())
-    } catch (error) {
-      console.error("Failed to initialize Azure client:", error)
-      throw error
+      this.client = new OpenAIClient(
+        cleanEndpoint,
+        createAzureCredential()
+      )
+    } catch (error: unknown) {
+      const err = error as { name?: string };
+      console.error("Failed to initialize Azure client:", err);
+      throw error;
     }
   }
 
@@ -133,7 +139,6 @@ export class AzureService {
   private addToHistory(role: 'user' | 'assistant', content: string) {
     this.conversationHistory.push({ role, content })
     
-    // Keep history within limits
     if (this.conversationHistory.length > MAX_CONTEXT_MESSAGES + 1) {
       const systemPrompt = this.conversationHistory[0]
       this.conversationHistory = [
@@ -148,7 +153,6 @@ export class AzureService {
     userProfile?: UserProfile,
     onProgress?: (text: string) => void
   ): Promise<string> {
-    // Cancel any existing stream
     if (this.streamController) {
       this.streamController.abort()
     }
@@ -163,32 +167,27 @@ export class AzureService {
         }
       }
 
-      // Add user profile context if available
       if (userProfile) {
-        this.conversationHistory[0].content += `\n\nCurrent user: ${userProfile.name}
-Experience level: ${userProfile.rtExperience}
-Focus area: ${userProfile.realityFocus}
-Transformation goal: ${userProfile.transformationIntent}`
+        this.conversationHistory[0].content += `\n\nCurrent user: ${userProfile.name}\nExperience level: ${userProfile.rtExperience}\nFocus area: ${userProfile.realityFocus}\nTransformation goal: ${userProfile.transformationIntent}`
       }
 
-      // Add user message to history
       this.addToHistory("user", userMessage)
 
       const fullResponse = await this.retryOperation(() => 
         this.streamWithRetry(this.conversationHistory, onProgress)
       )
 
-      // Add assistant response to history
       this.addToHistory("assistant", fullResponse)
       this.streamController = null
 
       return fullResponse
-    } catch (error) {
-      if (error?.code === 'REQUEST_SEND_ERROR') {
+    } catch (error: unknown) {
+      const err = error as { code?: string; name?: string };
+      if (err?.code === 'REQUEST_SEND_ERROR') {
         throw new Error('Failed to connect to Azure OpenAI. Please check your network connection.')
-      } else if (error?.code === 'RATE_LIMIT_EXCEEDED') {
+      } else if (err?.code === 'RATE_LIMIT_EXCEEDED') {
         throw new Error('Rate limit exceeded. Please try again in a moment.')
-      } else if (error?.name === 'AbortError') {
+      } else if (err?.name === 'AbortError') {
         throw new Error('Response generation cancelled')
       }
       console.error("Failed to generate response:", error)
