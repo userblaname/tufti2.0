@@ -23,7 +23,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- API Endpoint for Chat ---
-app.post('/api/chat', async (req, res) => {
+app.post('/chat', async (req, res) => {
   let streamFinishedNaturally = false;
   try {
     const { messages, systemPrompt } = req.body;
