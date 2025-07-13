@@ -4,6 +4,9 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const serverless = require('serverless-http');
 
+// ADD THIS LINE FOR DEBUGGING:
+console.log("ai-proxy.cjs function started.");
+
 dotenv.config(); // Load .env from Netlify's environment
 
 // Initialize the Azure OpenAI client
