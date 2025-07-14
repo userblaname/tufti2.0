@@ -1,3 +1,4 @@
+console.log("ai-proxy.cjs: TOP OF FILE EXECUTED");
 const express = require('express');
 const { AzureOpenAI } = require('openai');
 const dotenv = require('dotenv');

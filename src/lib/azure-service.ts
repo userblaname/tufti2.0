@@ -5,7 +5,7 @@ import type { Message, UserProfile } from "./types"
 export class AzureService {
   private static instance: AzureService
 
-  private constructor() { 
+  private constructor() {
     // No direct client initialization needed anymore, as we're hitting our Netlify Function
   }
 
