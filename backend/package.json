@@ -1,0 +1,15 @@
+{
+  "name": "tufti-backend",
+  "version": "1.0.0",
+  "description": "Backend proxy for Tufti 2.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@azure/openai": "^1.0.0-beta.11",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
