@@ -1,9 +1,9 @@
 import { AzureKeyCredential } from "@azure/openai"
 
 export const azureConfig = {
-  endpoint: "https://abdel-m27xpjov-eastus2.openai.azure.com",
+  endpoint: "https://navigator31.openai.azure.com",
   apiKey: "a388d7b6f0624893b7e734dd1cd3a4d5",
-  deploymentName: "gpt-4o-4OK",
+  deploymentName: "o4-mini",
   apiVersion: "2023-05-15"
 }
 
