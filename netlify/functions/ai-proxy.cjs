@@ -26,7 +26,7 @@ exports.handler = async function (event) {
     const response = await fetch(azureUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
-      body: JSON.stringify({ messages, max_completion_tokens: 1500, temperature: 0.7 }),
+      body: JSON.stringify({ messages, max_completion_tokens: 1500 }),
     });
 
     if (!response.ok) {
