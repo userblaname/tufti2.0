@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase/client'; // Import Supabase client
 import type { Message, UserProfile } from '@/lib/types'
 import { TUFTI_SYSTEM_PROMPT } from "@/lib/tufti";
 import { useAuth } from '@/contexts/AuthContext';
-import { getAiResponse } from './lib/chat-service'; // New import
+import { getAiResponse } from '../lib/chat-service'; // Corrected import path
 
 // Define the backend endpoint URL - now relative for SWA
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || '/api/chat';
