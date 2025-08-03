@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase/client'; // Import Supabase client
 import type { Message, UserProfile } from '@/lib/types'
 import { TUFTI_SYSTEM_PROMPT } from "@/lib/tufti";
 import { useAuth } from '@/contexts/AuthContext';
+import { getAiResponse } from './lib/chat-service'; // New import
 
 // Define the backend endpoint URL - now relative for SWA
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || '/api/chat';
@@ -252,125 +253,27 @@ Timestamp: ${new Date().toISOString()}
       console.log("DEV_LOG: Before API call in try block. isGenerating:", true);
       console.log("--- DEV_LOG: LIVE API CALL INITIATED ---");
 
-      // The rest of your existing fetch and streaming logic goes here...
-      // Ensure the fetch('/api/chat', ...) is present and active.
-
-      // Set a timeout for the fetch request
-      timeoutId = setTimeout(() => {
-        controller.abort();
-        console.error("API request timed out.");
-        setChatError("API request timed out. Please try again.");
-        setIsGenerating(false);
-        setIsSending(false);
-        console.log("DEV_LOG: Timeout triggered. isSending:", false, "isGenerating:", false);
-      }, REQUEST_TIMEOUT_MS);
-
-      const response = await fetch(BACKEND_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
-        body: JSON.stringify({
-          messages: finalMessagesForBackend.map(msg => ({ 
+      // The component simply calls our clean service function.
+      const aiReply = await getAiResponse(
+        finalMessagesForBackend.map(msg => ({ 
             content: msg.text, 
             role: msg.sender === 'user' ? 'user' : 'assistant' 
-          })),
-          userProfile: userProfile,
-          conversationId: currentConversationId,
-          systemPrompt: TUFTI_SYSTEM_PROMPT
-        }),
-        signal: controller.signal, 
-      });
+        }))
+      );
 
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (e) {
-          errorData = { message: response.statusText };
-        }
-        throw new Error(`API error: ${errorData.message || response.statusText}`);
-      }
+      fullAssistantResponse = aiReply;
 
-      // Check for streamable content-type
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("text/event-stream")) {
-          // Handle non-streaming responses, if any expected (e.g., immediate errors)
-          const data = await response.json();
-          console.warn("Received non-streaming response:", data);
-          fullAssistantResponse = data.message || "An unexpected response was received.";
-          // Update messages immediately if not streaming
-          setMessages(prevMessages => 
-              prevMessages.map(msg => 
-                  msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
-              )
-          );
-          setIsGenerating(false);
-          setIsSending(false); // Ensure sending state is reset
-          if (timeoutId) clearTimeout(timeoutId);
-          return;
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("Failed to get reader from response body.");
-      }
-
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
+      // Add the AI's reply to your chat window state.
+      setMessages(prevMessages => 
+          prevMessages.map(msg => 
+              msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
+          )
+      );
       
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) {
-          console.log("Stream finished.");
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-
-        // Process all complete messages in the buffer
-        let lastNewlineIndex;
-        while ((lastNewlineIndex = buffer.indexOf("\n")) !== -1) {
-            const jsonLine = buffer.substring(0, lastNewlineIndex).trim();
-            buffer = buffer.substring(lastNewlineIndex + 1);
-
-            if (jsonLine.startsWith("data:")) {
-                const dataString = jsonLine.substring(5).trim();
-                if (dataString === "[DONE]") {
-                    console.log("Stream sent DONE signal.");
-                    if (timeoutId) clearTimeout(timeoutId); // Clear timeout on DONE
-                    // The final update is handled below by fullAssistantResponse being set
-                    reader.cancel(); // Close the stream from our side
-                    break; // Exit the while loop
-                } else {
-                    try {
-                        const parsedData = JSON.parse(dataString);
-                        const content = parsedData.content; // Assuming 'content' key
-                        if (content) {
-                            fullAssistantResponse += content;
-                            // Immediately update messages state with the current partial response
-                            setMessages(prevMessages =>
-                                prevMessages.map(msg =>
-                                    msg.id === streamingMessageIdRef.current ? { ...msg, text: fullAssistantResponse } : msg
-                                )
-                            );
-                            console.log("DEV_LOG: Streaming content update. Current message text length:", fullAssistantResponse.length);
-                        }
-                    } catch (parseError) {
-                        console.error("Failed to parse JSON line from stream:", parseError, "Line:", dataString);
-                        // Potentially handle malformed data by skipping or logging
-                    }
-                }
-            } else {
-                 console.log("DEV_LOG: Received non-data stream line:", jsonLine);
-            }
-        }
-      }
-
     } catch (error: any) {
-      console.error('Error during sendMessage process:', error.message);
-      setChatError(`Failed to send message: ${error.message}`);
+      console.error("Failed to get AI response:", error);
+      // Add an error message to your chat window state to inform the user.
+      setChatError(`Failed to get AI response: ${error.message}`);
       // Ensure all flags are reset on error
       setIsTyping(false);
       setIsGenerating(false);
