@@ -253,6 +253,38 @@ Timestamp: ${new Date().toISOString()}
       console.log("DEV_LOG: Before API call in try block. isGenerating:", true);
       console.log("--- DEV_LOG: LIVE API CALL INITIATED ---");
 
+      // 1. Create a new conversation if one doesn't exist
+      if (!currentConversationId) {
+        console.log("DEV_LOG: No conversationId found, creating new conversation.");
+        const { data: newConversation, error: convError } = await supabase
+          .from('conversations')
+          .insert({ user_id: userId, is_active: true })
+          .select('id')
+          .single();
+
+        if (convError) {
+          throw new Error(`Supabase error creating conversation: ${convError.message}`);
+        }
+        currentConversationId = newConversation.id;
+        conversationIdRef.current = newConversation.id; // Update ref
+        console.log('DEV_LOG: New conversation created with ID:', currentConversationId);
+      }
+
+      // 2. Save the user message to Supabase
+      const { error: userMsgError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: currentConversationId,
+          content: userMessage.text,
+          sender: userMessage.sender === 'user' ? 'user' : 'ai',
+          id: userMessage.id // Use local ID for Supabase for consistency
+        });
+
+      if (userMsgError) {
+        console.error("Supabase error saving user message:", userMsgError);
+        // Continue process but log the error
+      }
+
       // The component simply calls our clean service function.
       const aiReply = await getAiResponse(
         finalMessagesForBackend.map(msg => ({ 
@@ -269,6 +301,21 @@ Timestamp: ${new Date().toISOString()}
               msg.id === assistantMessageId ? { ...msg, text: fullAssistantResponse } : msg
           )
       );
+
+      // 3. Save the AI response to Supabase
+      const { error: aiMsgError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: currentConversationId,
+          content: fullAssistantResponse,
+          sender: assistantMessagePlaceholder.sender === 'user' ? 'user' : 'ai',
+          id: assistantMessageId // Use local ID for Supabase for consistency
+        });
+      
+      if (aiMsgError) {
+        console.error("Supabase error saving AI message:", aiMsgError);
+        // Continue process but log the error
+      }
       
     } catch (error: any) {
       console.error("Failed to get AI response:", error);
