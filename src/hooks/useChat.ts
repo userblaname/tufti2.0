@@ -253,9 +253,10 @@ Timestamp: ${new Date().toISOString()}
       console.log("DEV_LOG: Before API call in try block. isGenerating:", true);
       console.log("--- DEV_LOG: LIVE API CALL INITIATED ---");
 
-      // 1. Create a new conversation if one doesn't exist
-      if (!currentConversationId) {
-        console.log("DEV_LOG: No conversationId found, creating new conversation.");
+      // Ensure conversationIdRef.current is the latest before creating new conversation or saving messages
+      // This is crucial for new sessions where history might not exist yet.
+      if (!conversationIdRef.current) {
+        console.log("DEV_LOG: No conversationId found, attempting to create new conversation.");
         const { data: newConversation, error: convError } = await supabase
           .from('conversations')
           .insert({ user_id: userId, is_active: true })
@@ -265,24 +266,25 @@ Timestamp: ${new Date().toISOString()}
         if (convError) {
           throw new Error(`Supabase error creating conversation: ${convError.message}`);
         }
-        currentConversationId = newConversation.id;
-        conversationIdRef.current = newConversation.id; // Update ref
+        conversationIdRef.current = newConversation.id; // Update ref immediately
+        currentConversationId = newConversation.id; // Update local variable as well
         console.log('DEV_LOG: New conversation created with ID:', currentConversationId);
+      } else {
+        currentConversationId = conversationIdRef.current;
       }
 
-      // 2. Save the user message to Supabase
+      // Save the user message to Supabase AFTER confirming currentConversationId
       const { error: userMsgError } = await supabase
         .from('messages')
         .insert({
           conversation_id: currentConversationId,
           content: userMessage.text,
-          sender: userMessage.sender === 'user' ? 'user' : 'ai',
-          id: userMessage.id // Use local ID for Supabase for consistency
+          sender: 'user',
+          id: userMessage.id // Use local ID for consistency, let Supabase handle if it's default
         });
 
       if (userMsgError) {
         console.error("Supabase error saving user message:", userMsgError);
-        // Continue process but log the error
       }
 
       // The component simply calls our clean service function.
@@ -302,19 +304,18 @@ Timestamp: ${new Date().toISOString()}
           )
       );
 
-      // 3. Save the AI response to Supabase
+      // Save the AI response to Supabase AFTER confirming currentConversationId
       const { error: aiMsgError } = await supabase
         .from('messages')
         .insert({
           conversation_id: currentConversationId,
           content: fullAssistantResponse,
-          sender: assistantMessagePlaceholder.sender === 'user' ? 'user' : 'ai',
-          id: assistantMessageId // Use local ID for Supabase for consistency
+          sender: 'ai',
+          id: assistantMessageId // Use local ID for consistency
         });
       
       if (aiMsgError) {
         console.error("Supabase error saving AI message:", aiMsgError);
-        // Continue process but log the error
       }
       
     } catch (error: any) {
