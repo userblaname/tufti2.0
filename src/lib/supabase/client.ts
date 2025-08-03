@@ -3,8 +3,8 @@
 import { createClient } from '@supabase/supabase-js'
 
 // This is the Vite-specific way to access environment variables on the frontend.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env.SUPABASE_DATABASE_URL
+const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY
 
 // This check will now correctly identify if the variables are missing during the build.
 if (!supabaseUrl || !supabaseAnonKey) {
