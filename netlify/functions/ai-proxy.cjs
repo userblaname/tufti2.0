@@ -19,7 +19,7 @@ exports.handler = async function (event) {
     };
   }
 
-  const azureUrl = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2023-05-15`;
+  const azureUrl = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2025-01-01-preview`;
 
   try {
     const { messages } = JSON.parse(event.body);
