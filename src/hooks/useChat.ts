@@ -275,10 +275,9 @@ Timestamp: ${new Date().toISOString()}
         .from('messages')
         .insert({
           conversation_id: currentConversationId,
-          user_id: userId, // ADDED: Include user_id
+          user_id: userId,
           content: userMessage.text,
-          sender: userMessage.sender === 'user' ? 'user' : 'ai',
-          id: userMessage.id // Use local ID for Supabase for consistency
+          sender: userMessage.sender === 'user' ? 'user' : 'ai'
         });
 
       if (userMsgError) {
@@ -308,10 +307,9 @@ Timestamp: ${new Date().toISOString()}
         .from('messages')
         .insert({
           conversation_id: currentConversationId,
-          user_id: userId, // ADDED: Include user_id
+          user_id: userId,
           content: fullAssistantResponse,
-          sender: assistantMessagePlaceholder.sender === 'user' ? 'user' : 'ai',
-          id: assistantMessageId // Use local ID for Supabase for consistency
+          sender: assistantMessagePlaceholder.sender === 'user' ? 'user' : 'ai'
         });
       
       if (aiMsgError) {
