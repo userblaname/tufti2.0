@@ -1,16 +1,16 @@
 import { useCallback, useRef } from 'react'
-import { useVirtual } from '@tanstack/react-virtual'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Message } from '@/lib/types'
 
 export function useVirtualScroll(messages: Message[], rowHeight = 100) {
   const parentRef = useRef<HTMLDivElement>(null)
   const scrollingRef = useRef<HTMLDivElement>(null)
 
-  const rowVirtualizer = useVirtual({
-    size: messages.length,
-    parentRef,
+  const rowVirtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollingRef.current,
     estimateSize: useCallback(() => rowHeight, [rowHeight]),
-    overscan: 5
+    overscan: 5,
   })
 
   const scrollToBottom = useCallback(() => {
@@ -25,8 +25,8 @@ export function useVirtualScroll(messages: Message[], rowHeight = 100) {
   return {
     parentRef,
     scrollingRef,
-    virtualRows: rowVirtualizer.virtualItems,
-    totalSize: rowVirtualizer.totalSize,
+    virtualRows: rowVirtualizer.getVirtualItems(),
+    totalSize: rowVirtualizer.getTotalSize(),
     scrollToBottom
   }
 }
