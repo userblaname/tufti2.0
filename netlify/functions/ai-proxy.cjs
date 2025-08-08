@@ -26,8 +26,8 @@ exports.handler = async function (event) {
     const response = await fetch(azureUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
-      // Use token params compatible with 2025-01-01-preview
-      body: JSON.stringify({ messages, max_tokens: 1500 }),
+      // o4-mini expects max_completion_tokens on this API version
+      body: JSON.stringify({ messages, max_completion_tokens: 1500 }),
     });
 
     if (!response.ok) {
