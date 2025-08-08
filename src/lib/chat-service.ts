@@ -33,29 +33,25 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
     }
 
     const data = await response.json();
-    const message = data?.choices?.[0]?.message ?? data?.choices?.[0];
-    let aiMessage: string | undefined;
 
-    if (message) {
-      // Content can be a string or an array of objects with a `text` field
-      const content = message.content as unknown;
-      if (typeof content === 'string') {
-        aiMessage = content;
-      } else if (Array.isArray(content)) {
-        aiMessage = content
-          .map((part: any) => {
-            if (typeof part === 'string') return part;
-            if (part && typeof part.text === 'string') return part.text;
-            return '';
-          })
-          .join('')
-          .trim() || undefined;
-      }
-      // Fallbacks some providers use
-      if (!aiMessage && typeof (message?.text) === 'string') {
-        aiMessage = message.text;
-      }
-    }
+    const extractText = (payload: any): string => {
+      if (!payload) return '';
+      if (typeof payload === 'string') return payload;
+      if (Array.isArray(payload)) return payload.map(extractText).join('');
+      // Try common shapes
+      if (typeof payload.text === 'string') return payload.text;
+      if (payload.message) return extractText(payload.message);
+      if (payload.content) return extractText(payload.content);
+      if (payload.output_text) return extractText(payload.output_text);
+      if (payload.output) return extractText(payload.output);
+      if (payload.choices) return extractText(payload.choices[0]);
+      return '';
+    };
+
+    // Prefer choices.message.content when present; otherwise fall back to best-effort extraction
+    const preferred = data?.choices?.[0]?.message?.content;
+    let aiMessage: string | undefined = extractText(preferred).trim();
+    if (!aiMessage) aiMessage = extractText(data).trim();
 
     if (!aiMessage || aiMessage.trim().length === 0) {
       throw new Error("The AI response was not in the expected format.");
