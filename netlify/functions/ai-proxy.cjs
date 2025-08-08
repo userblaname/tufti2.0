@@ -1,6 +1,28 @@
 // This is the FINAL code for: netlify/functions/ai-proxy.cjs
 const fetch = require('node-fetch');
 
+// Very lightweight in-memory rate limiter (per-IP per minute)
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 30; // 30 requests per minute
+const buckets = new Map();
+
+function getClientKey(event) {
+  const xfwd = event.headers['x-forwarded-for'] || event.headers['client-ip'] || '';
+  const ip = Array.isArray(xfwd) ? xfwd[0] : (xfwd.split(',')[0] || 'unknown');
+  return ip.trim();
+}
+
+function isRateLimited(key, now = Date.now()) {
+  const bucket = buckets.get(key) || { start: now, count: 0 };
+  if (now - bucket.start > RATE_LIMIT_WINDOW_MS) {
+    buckets.set(key, { start: now, count: 1 });
+    return false;
+  }
+  bucket.count += 1;
+  buckets.set(key, bucket);
+  return bucket.count > RATE_LIMIT_MAX;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -22,12 +44,30 @@ exports.handler = async function (event) {
   const azureUrl = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2025-01-01-preview`;
 
   try {
-    const { messages } = JSON.parse(event.body);
+    const clientKey = getClientKey(event);
+    if (isRateLimited(clientKey)) {
+      return { statusCode: 429, body: JSON.stringify({ error: { code: 'rate_limited', message: 'Too many requests, please slow down.' } }) };
+    }
+
+    const { messages } = JSON.parse(event.body || '{}');
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return { statusCode: 400, body: JSON.stringify({ error: { code: 'bad_request', message: 'Missing messages array.' } }) };
+    }
+
+    // Guardrails: limit history size and message length
+    const MAX_MESSAGES = 30;
+    const MAX_CHARS = 4000;
+    const safeMessages = messages
+      .slice(-MAX_MESSAGES)
+      .map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content.slice(0, MAX_CHARS) : m.content,
+      }));
     const response = await fetch(azureUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
       // o4-mini expects max_completion_tokens on this API version
-      body: JSON.stringify({ messages, max_completion_tokens: 1500 }),
+      body: JSON.stringify({ messages: safeMessages, max_completion_tokens: 1200 }),
     });
 
     if (!response.ok) {
@@ -39,6 +79,6 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify(data) };
 
   } catch (error) {
-    return { statusCode: 500, body: 'Internal function error.' };
+    return { statusCode: 500, body: JSON.stringify({ error: { code: 'server_error', message: 'Internal function error.' } }) };
   }
 }; 
