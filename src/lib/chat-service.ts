@@ -38,9 +38,10 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
       if (!payload) return '';
       if (typeof payload === 'string') return payload;
       if (Array.isArray(payload)) return payload.map(extractText).join('');
-      // Try common shapes
+      // Common shapes
       if (typeof payload.text === 'string') return payload.text;
       if (payload.message) return extractText(payload.message);
+      if (payload.delta) return extractText(payload.delta);
       if (payload.content) return extractText(payload.content);
       if (payload.output_text) return extractText(payload.output_text);
       if (payload.output) return extractText(payload.output);
@@ -48,10 +49,33 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
       return '';
     };
 
+    // Fallback: deep search for the longest natural-language string
+    const extractLongestString = (node: any): string => {
+      let best = '';
+      const visit = (n: any) => {
+        if (n == null) return;
+        if (typeof n === 'string') {
+          const s = n.trim();
+          if (s.length > best.length) best = s;
+          return;
+        }
+        if (Array.isArray(n)) {
+          n.forEach(visit);
+          return;
+        }
+        if (typeof n === 'object') {
+          Object.values(n).forEach(visit);
+        }
+      };
+      visit(node);
+      return best;
+    };
+
     // Prefer choices.message.content when present; otherwise fall back to best-effort extraction
     const preferred = data?.choices?.[0]?.message?.content;
     let aiMessage: string | undefined = extractText(preferred).trim();
     if (!aiMessage) aiMessage = extractText(data).trim();
+    if (!aiMessage) aiMessage = extractLongestString(data);
 
     if (!aiMessage || aiMessage.trim().length === 0) {
       throw new Error("The AI response was not in the expected format.");
