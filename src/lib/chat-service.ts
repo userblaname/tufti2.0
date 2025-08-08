@@ -34,6 +34,11 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
 
     const data = await response.json();
 
+    // Prefer normalized server content when available
+    if (typeof data?.content === 'string' && data.content.trim().length > 0) {
+      return data.content.trim();
+    }
+
     const extractText = (payload: any): string => {
       if (!payload) return '';
       if (typeof payload === 'string') return payload;

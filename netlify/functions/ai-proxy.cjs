@@ -76,7 +76,34 @@ exports.handler = async function (event) {
     }
 
     const data = await response.json();
-    return { statusCode: 200, body: JSON.stringify(data) };
+
+    // Normalize content to a single string for the client
+    const extractText = (payload) => {
+      if (!payload) return '';
+      if (typeof payload === 'string') return payload;
+      if (Array.isArray(payload)) return payload.map(extractText).join('');
+      if (typeof payload.text === 'string') return payload.text;
+      if (payload.message) return extractText(payload.message);
+      if (payload.delta) return extractText(payload.delta);
+      if (payload.content) return extractText(payload.content);
+      if (payload.output_text) return extractText(payload.output_text);
+      if (payload.output) return extractText(payload.output);
+      if (payload.choices) return extractText(payload.choices[0]);
+      return '';
+    };
+
+    const rawPreferred = data?.choices?.[0]?.message?.content;
+    let content = extractText(rawPreferred).trim();
+    if (!content) content = extractText(data).trim();
+
+    if (!content) {
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: { code: 'bad_ai_response', message: 'AI returned no usable text.' }, raw: data })
+      };
+    }
+
+    return { statusCode: 200, body: JSON.stringify({ content, raw: undefined }) };
 
   } catch (error) {
     return { statusCode: 500, body: JSON.stringify({ error: { code: 'server_error', message: 'Internal function error.' } }) };
