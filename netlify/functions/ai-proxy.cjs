@@ -31,8 +31,9 @@ exports.handler = async function (event) {
   // These secrets are read securely from the Netlify UI.
   const apiKey = process.env.AZURE_OPENAI_API_KEY;
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  // This uses your correct model name, `o4-mini`.
-  const deploymentName = 'o4-mini';
+  // Deployment/model name now configurable via env
+  const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'o4-mini';
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2025-01-01-preview';
 
   if (!apiKey || !endpoint) {
     return {
@@ -41,7 +42,7 @@ exports.handler = async function (event) {
     };
   }
 
-  const azureUrl = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2025-01-01-preview`;
+  const azureUrl = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=${apiVersion}`;
 
   try {
     const clientKey = getClientKey(event);
@@ -66,8 +67,11 @@ exports.handler = async function (event) {
     const response = await fetch(azureUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
-      // o4-mini expects max_completion_tokens on this API version
-      body: JSON.stringify({ messages: safeMessages, max_completion_tokens: 1200 }),
+      // Choose token parameter based on model family (heuristic)
+      body: JSON.stringify({
+        messages: safeMessages,
+        ...( /\b(gpt|4o)\b/i.test(deploymentName) ? { max_tokens: 1200 } : { max_completion_tokens: 1200 } )
+      }),
     });
 
     if (!response.ok) {
