@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Suspense } from 'react'
 import { Auth } from '@supabase/auth-ui-react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { motion, motionValue, useTransform, animate as fmAnimate } from 'framer-motion';
 import { TypeAnimation } from 'react-type-animation';
 import '@fontsource/space-grotesk/index.css';
+import { Button } from '@/components/ui/button'
 
 // Animated Subtle Grid Background Component
 const AnimatedGridBackground = () => {
@@ -16,6 +17,7 @@ const AnimatedGridBackground = () => {
 
   // Animate the motion values
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const controlsX = fmAnimate(backgroundX, [0, -40], { 
       duration: 5, 
       repeat: Infinity, 
@@ -92,7 +94,8 @@ const tuftiMessages = [
 ];
 
 const AuthPage: React.FC = () => {
-  const { supabase } = useAuth();
+  const { supabase, signInWithGoogle, isLoading, authError } = useAuth();
+  const [showEmail, setShowEmail] = useState(false)
 
   useEffect(() => {
     if (!supabase) return;
@@ -121,97 +124,77 @@ const AuthPage: React.FC = () => {
       <PatternCircle className="w-[50vw] h-[50vw] md:w-[40vw] md:h-[40vw] top-[-25%] left-[-15%]" />
       <PatternCircle className="w-[45vw] h-[45vw] md:w-[35vw] md:h-[35vw] bottom-[-20%] right-[-10%]" />
 
-      {/* Tufti Dialogue Area - Now Animated and Persona-based */}
-      <div className="relative z-10 mb-8 text-center h-12 md:h-16 max-w-md">
+      {/* Tufti Dialogue Area - brief */}
+      <div className="relative z-10 mb-6 text-center h-10 md:h-12 max-w-md">
         <TypeAnimation
           sequence={[
             ...tuftiMessages.flatMap(msg => [msg, 6000, ' ', 500]), // Type, pause, clear, pause
           ]}
-          wrapper="p"
           speed={60}
-          className="text-base md:text-lg text-gray-400 italic font-light"
+          className="text-sm md:text-base text-gray-400 italic font-light"
           repeat={Infinity}
-          cursor={true}
+          cursor={false}
         />
       </div>
 
       {/* Auth Form Container */}
       <motion.div 
-        className="relative z-10 w-full max-w-sm sm:max-w-md p-8 bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl"
+        className="relative z-10 w-full max-w-sm sm:max-w-md p-6 md:p-8 bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl"
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
+        aria-busy={isLoading}
       >
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-semibold text-tufti-white mb-4 font-modern">
-            Reality Film
-          </h1>
-          <p className="text-gray-300 text-base">
-            Sign in to continue
-          </p>
+        <div className="text-center mb-5 md:mb-6">
+          <h2 className="text-2xl md:text-3xl font-semibold text-tufti-white font-baroque">Compose your reality</h2>
+          <p className="text-gray-300 text-sm md:text-base">Sign in to save scenes across devices</p>
         </div>
-        <Suspense fallback={<div className="text-center text-gray-400 py-8">Loading auth…</div>}>
-        <Auth
-          supabaseClient={supabase}
-          appearance={{ 
-            theme: ThemeSupa,
-            variables: {
-              default: {
-                colors: {
-                  brand: 'hsl(220, 70%, 65%)',
-                  brandAccent: 'hsl(220, 80%, 75%)',
-                  brandButtonText: '#FFFFFF',
-                  defaultButtonBackground: '#FFFFFF',
-                  defaultButtonBackgroundHover: '#F2F2F2',
-                  defaultButtonBorder: 'rgba(200, 200, 200, 0.3)',
-                  defaultButtonText: '#333333',
-                  dividerBackground: 'rgba(255, 255, 255, 0.1)',
-                  inputBackground: 'rgba(255, 255, 255, 0.05)',
-                  inputBorder: 'rgba(255, 255, 255, 0.15)',
-                  inputBorderHover: 'rgba(255, 255, 255, 0.3)',
-                  inputBorderFocus: 'hsl(220, 70%, 65%)',
-                  inputText: '#E5E5E7',
-                  inputLabelText: '#A0AEC0',
-                  inputPlaceholder: 'rgba(255, 255, 255, 0.4)',
-                  messageText: '#E5E5E7',
-                  messageTextDanger: '#FCA5A5',
-                  anchorTextColor: 'hsl(220, 60%, 70%)',
-                  anchorTextHoverColor: '#FFFFFF',
-                },
-                space: {
-                  buttonPadding: '16px 28px',
-                  socialAuthSpacing: '0px',
-                  inputPadding: '10px 12px',
-                },
-                fontSizes: {
-                  baseButtonSize: '18px',
-                },
-                fonts: {
-                  bodyFontFamily: 'inherit',
-                  buttonFontFamily: 'inherit',
-                  inputFontFamily: 'inherit',
-                  labelFontFamily: 'inherit',
-                },
-              },
-            },
-            className: {
-              button: 'focus:ring-2 focus:ring-offset-2 focus:ring-offset-black/10 focus:ring-blue-400 transition-shadow duration-200 shadow-md hover:shadow-lg'
-            }
-          }}
-          providers={['google']}
-          redirectTo={`${window.location.origin}/`}
-          localization={{
-            variables: {
-              sign_in: {
-                social_provider_text: 'Sign in with Google',
-              },
-            },
-          }}
-          socialLayout="horizontal"
-          onlyThirdPartyProviders={true}
-          view="sign_in"
-        />
-        </Suspense>
+
+        {/* Primary: Google OAuth */}
+        <div className="space-y-3">
+          <Button onClick={signInWithGoogle} disabled={isLoading} className="w-full h-11 text-base">
+            Continue with Google
+          </Button>
+          <button
+            type="button"
+            onClick={() => setShowEmail(v => !v)}
+            className="w-full text-center text-sm text-gray-300 hover:text-white underline underline-offset-4"
+            aria-expanded={showEmail}
+          >
+            {showEmail ? 'Hide email options' : 'Use email instead'}
+          </button>
+        </div>
+
+        {/* Email sign-in */}
+        {showEmail && (
+          <div className="mt-4">
+            <Suspense fallback={<div className="text-center text-gray-400 py-6">Loading…</div>}>
+              <Auth
+                supabaseClient={supabase}
+                appearance={{ theme: ThemeSupa, className: { button: 'focus:ring-2 focus:ring-blue-400' } }}
+                providers={[]}
+                view="sign_in"
+              />
+            </Suspense>
+          </div>
+        )}
+
+        {/* Error region */}
+        <div className="mt-3 min-h-[20px]" aria-live="polite">
+          {authError && <p className="text-sm text-red-400 text-center">{authError}</p>}
+        </div>
+
+        {/* Privacy row */}
+        <div className="mt-4 text-center text-xs text-gray-400">
+          We only use your email for authentication. <a href="#" className="underline hover:text-gray-200">Privacy</a> · <a href="#" className="underline hover:text-gray-200">Terms</a>
+        </div>
+
+        {/* Loading overlay */}
+        {isLoading && (
+          <div role="dialog" aria-label="Signing in" className="absolute inset-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center">
+            <span className="text-sm text-gray-200">Redirecting to Google…</span>
+          </div>
+        )}
       </motion.div>
     </div>
   );
