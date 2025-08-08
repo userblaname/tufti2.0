@@ -61,18 +61,32 @@ exports.handler = async function (event) {
     const MAX_CHARS = 4000;
     const safeMessages = messages
       .slice(-MAX_MESSAGES)
-      .map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string' ? m.content.slice(0, MAX_CHARS) : m.content,
-      }));
+      .map(m => {
+        const content = m?.content;
+        // Azure 2025-01-01-preview accepts content as array of parts
+        if (typeof content === 'string') {
+          return {
+            role: m.role,
+            content: [{ type: 'text', text: content.slice(0, MAX_CHARS) }],
+          };
+        }
+        if (Array.isArray(content)) {
+          return {
+            role: m.role,
+            content: content.map(p => (typeof p === 'string' ? { type: 'text', text: p.slice(0, MAX_CHARS) } : p)),
+          };
+        }
+        // Fallback: try text field
+        if (content && typeof content.text === 'string') {
+          return { role: m.role, content: [{ type: 'text', text: content.text.slice(0, MAX_CHARS) }] };
+        }
+        return { role: m.role, content: [{ type: 'text', text: '' }] };
+      });
     const response = await fetch(azureUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
-      // Choose token parameter based on model family (heuristic)
-      body: JSON.stringify({
-        messages: safeMessages,
-        ...( /\b(gpt|4o)\b/i.test(deploymentName) ? { max_tokens: 1200 } : { max_completion_tokens: 1200 } )
-      }),
+      // Azure 2025-01-01-preview expects max_completion_tokens
+      body: JSON.stringify({ messages: safeMessages, max_completion_tokens: 1200 }),
     });
 
     if (!response.ok) {
