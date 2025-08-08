@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/lib/types'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -14,12 +15,41 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
   const isTuftiMessage = message.sender === "tufti";
   const isEmpty = isTuftiMessage && !message.text;
   
-  // Common content rendered via ReactMarkdown
+  // Common content rendered via Markdown for better structure (headings, lists)
   const content = isEmpty ? (
     <span className="inline-block ml-1">▋</span>
   ) : (
-    // <ReactMarkdown>{message.text}</ReactMarkdown> 
-    <div>{message.text}</div>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        h1: ({ node, ...props }) => (
+          <h1 className="mt-2 mb-3 text-2xl font-semibold text-teal-accent" {...props} />
+        ),
+        h2: ({ node, ...props }) => (
+          <h2 className="mt-2 mb-2 text-xl font-semibold text-teal-accent" {...props} />
+        ),
+        h3: ({ node, ...props }) => (
+          <h3 className="mt-2 mb-2 text-lg font-semibold text-teal-accent" {...props} />
+        ),
+        p: ({ node, ...props }) => <p className="leading-relaxed" {...props} />,
+        ul: ({ node, ...props }) => <ul className="list-disc pl-5 space-y-1" {...props} />,
+        ol: ({ node, ...props }) => <ol className="list-decimal pl-5 space-y-1" {...props} />,
+        li: ({ node, ...props }) => <li className="marker:text-teal-accent" {...props} />,
+        blockquote: ({ node, ...props }) => (
+          <blockquote className="border-l-2 border-teal-accent/40 pl-3 italic text-gray-300" {...props} />
+        ),
+        code: ({ inline, className, children, ...props }) =>
+          inline ? (
+            <code className="px-1 py-0.5 rounded bg-white/10 text-gray-100" {...props}>{children}</code>
+          ) : (
+            <pre className="rounded bg-white/5 p-3 overflow-x-auto">
+              <code {...props}>{children}</code>
+            </pre>
+          ),
+      }}
+    >
+      {message.text}
+    </ReactMarkdown>
   );
 
   // Conditional rendering based on sender
@@ -70,8 +100,9 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
           "text-gray-200",
           "prose-p:font-modern prose-p:text-gray-200",
           "prose-headings:text-teal-accent prose-strong:text-gray-100",
+          "prose-h1:mt-2 prose-h1:mb-3 prose-h2:mt-2 prose-h2:mb-2 prose-h3:mt-2 prose-h3:mb-2",
           "max-w-none",
-          "break-words" // Add break-words here too for safety
+          "break-words"
         )}>
           {content}
         </div>
