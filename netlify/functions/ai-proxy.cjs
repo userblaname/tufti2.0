@@ -29,11 +29,12 @@ exports.handler = async function (event) {
   }
 
   // These secrets are read securely from the Netlify UI.
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  // Read from either AZURE_* or VITE_* envs (Netlify UI friendly)
+  const apiKey = process.env.AZURE_OPENAI_API_KEY || process.env.VITE_AZURE_OPENAI_API_KEY;
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT || process.env.VITE_AZURE_OPENAI_ENDPOINT;
   // Deployment/model name now configurable via env
-  const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'o4-mini';
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2025-01-01-preview';
+  const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || process.env.VITE_AZURE_OPENAI_DEPLOYMENT_NAME || 'o4-mini';
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || process.env.VITE_OPENAI_API_VERSION || process.env.VITE_AZURE_OPENAI_API_VERSION || '2025-01-01-preview';
 
   if (!apiKey || !endpoint) {
     return {
