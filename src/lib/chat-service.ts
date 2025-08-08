@@ -18,7 +18,12 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
     const messagesWithSystem =
       conversationHistory[0]?.role === 'system'
         ? conversationHistory
-        : [{ role: 'system', content: TUFTI_SYSTEM_PROMPT }, ...conversationHistory]
+        : [
+            { role: 'system', content: TUFTI_SYSTEM_PROMPT },
+            // Force dialog cadence: nudge the assistant to respond briefly and ask a question back
+            { role: 'system', content: 'Policy: Keep replies brief (2–6 sentences). End with a single, clear question.' },
+            ...conversationHistory,
+          ]
 
     // This URL points to our secure Netlify Function, not directly to Azure.
     const response = await fetch('/.netlify/functions/ai-proxy', {
