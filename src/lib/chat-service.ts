@@ -49,6 +49,16 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
       return '';
     };
 
+    // Heuristic: looks like natural language (avoid IDs like chatcmpl-...)
+    const isNaturalLanguage = (s: string): boolean => {
+      if (!s) return false;
+      const trimmed = s.trim();
+      if (trimmed.length < 8) return false; // too short
+      if (/^(chatcmpl|cmpl|msg|gpt|o[0-9]|ftcomp|run|asst|conv)[-_]/i.test(trimmed)) return false; // id-like prefixes
+      if (/^[A-Za-z0-9_-]{15,}$/.test(trimmed) && !/\s/.test(trimmed)) return false; // long token without spaces
+      return /[a-zA-Z]/.test(trimmed) && /\s/.test(trimmed); // has letters and at least one space
+    };
+
     // Fallback: deep search for the longest natural-language string
     const extractLongestString = (node: any): string => {
       let best = '';
@@ -56,7 +66,7 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
         if (n == null) return;
         if (typeof n === 'string') {
           const s = n.trim();
-          if (s.length > best.length) best = s;
+          if (isNaturalLanguage(s) && s.length > best.length) best = s;
           return;
         }
         if (Array.isArray(n)) {
