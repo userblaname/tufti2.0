@@ -33,20 +33,27 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
     }
 
     const data = await response.json();
-    const message = data?.choices?.[0]?.message;
+    const message = data?.choices?.[0]?.message ?? data?.choices?.[0];
     let aiMessage: string | undefined;
 
     if (message) {
-      // Newer Azure/OpenAI models may return content as an array of parts
+      // Content can be a string or an array of objects with a `text` field
       const content = message.content as unknown;
       if (typeof content === 'string') {
         aiMessage = content;
       } else if (Array.isArray(content)) {
-        // Join any text parts together
         aiMessage = content
-          .filter((part: any) => part?.type === 'text' && typeof part?.text === 'string')
-          .map((part: any) => part.text)
-          .join('') || undefined;
+          .map((part: any) => {
+            if (typeof part === 'string') return part;
+            if (part && typeof part.text === 'string') return part.text;
+            return '';
+          })
+          .join('')
+          .trim() || undefined;
+      }
+      // Fallbacks some providers use
+      if (!aiMessage && typeof (message?.text) === 'string') {
+        aiMessage = message.text;
       }
     }
 
