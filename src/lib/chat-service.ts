@@ -1,6 +1,7 @@
 // This is the full code for: src/lib/chat-service.ts
 
 // Defines the structure for a message in the conversation
+import { TUFTI_SYSTEM_PROMPT } from '@/lib/tufti'
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -13,11 +14,17 @@ interface ChatMessage {
  */
 export async function getAiResponse(conversationHistory: ChatMessage[]): Promise<string> {
   try {
+    // Always prepend Tufti system prompt unless the caller provided one already
+    const messagesWithSystem =
+      conversationHistory[0]?.role === 'system'
+        ? conversationHistory
+        : [{ role: 'system', content: TUFTI_SYSTEM_PROMPT }, ...conversationHistory]
+
     // This URL points to our secure Netlify Function, not directly to Azure.
     const response = await fetch('/.netlify/functions/ai-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: conversationHistory }),
+      body: JSON.stringify({ messages: messagesWithSystem }),
     });
 
     if (!response.ok) {
