@@ -78,12 +78,12 @@ export default {
         },
       },
       fontFamily: {
+        // Primary UI font family
         sans: ['"Space Grotesk"', 'Inter', ...defaultTheme.fontFamily.sans],
-        serif: ['Cinzel Decorative', ...defaultTheme.fontFamily.serif],
-        baroque: ['Cinzel Decorative', 'serif'],
+        // Brand display font for headings and accents (Tufti style)
+        baroque: ['"Cinzel Decorative"', 'serif'],
+        // Modern body font mapping (alias)
         modern: ['"Space Grotesk"', 'Inter', 'sans-serif'],
-        baroque: ['"Playfair Display"', 'serif'],
-        modern: ['"Poppins"', 'sans-serif'],
       },
       backgroundImage: {
         'baroque-pattern': "url('data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 0c27.614 0 50 22.386 50 50s-22.386 50-50 50S0 77.614 0 50 22.386 0 50 0zm0 10c-22.091 0-40 17.909-40 40s17.909 40 40 40 40-17.909 40-40-17.909-40-40-40zm0 10c16.569 0 30 13.431 30 30 0 16.569-13.431 30-30 30-16.569 0-30-13.431-30-30 0-16.569 13.431-30 30-30z' fill='%23FFFFFF' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E')",
