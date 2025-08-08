@@ -1,6 +1,8 @@
 import { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import React from 'react'
+const LazyMarkdown = React.lazy(async () => ({ default: ReactMarkdown }))
 import { cn } from '@/lib/utils'
 import type { Message } from '@/lib/types'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -19,7 +21,7 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
   const content = isEmpty ? (
     <span className="inline-block ml-1">▋</span>
   ) : (
-    <ReactMarkdown
+    <LazyMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ node, ...props }) => (
@@ -49,7 +51,7 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
       }}
     >
       {message.text}
-    </ReactMarkdown>
+    </LazyMarkdown>
   );
 
   // Conditional rendering based on sender

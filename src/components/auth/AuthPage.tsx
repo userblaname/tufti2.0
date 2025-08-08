@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Suspense } from 'react'
 import { Auth } from '@supabase/auth-ui-react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
@@ -149,6 +150,7 @@ const AuthPage: React.FC = () => {
             Sign in to continue
           </p>
         </div>
+        <Suspense fallback={<div className="text-center text-gray-400 py-8">Loading auth…</div>}>
         <Auth
           supabaseClient={supabase}
           appearance={{ 
@@ -209,6 +211,7 @@ const AuthPage: React.FC = () => {
           onlyThirdPartyProviders={true}
           view="sign_in"
         />
+        </Suspense>
       </motion.div>
     </div>
   );

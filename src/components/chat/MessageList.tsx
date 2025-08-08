@@ -1,10 +1,11 @@
-import { memo, useRef, useEffect } from 'react'
+import { memo, useRef, useEffect, Suspense } from 'react'
 import { useInView } from 'react-intersection-observer'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageProvider } from '@/contexts/MessageContext'
 import { cn } from '@/lib/utils'
 import Message from '@/components/message/Message'
+const VirtualMessageList = React.lazy(() => import('@/components/message/VirtualMessageList'))
 import LoadingIndicator from './LoadingIndicator'
 import type { Message as MessageType } from '@/lib/types'
 import React from 'react'
@@ -44,6 +45,21 @@ const MessageList = memo(({ messages, isTyping, onRetry, onFeedback, className }
         console.error("Failed to copy text: ", err)
       }
     }
+  }
+
+  // Switch to virtualized list when long threads
+  if (messages.length > 100) {
+    return (
+      <Suspense fallback={<div className="flex-1 px-4 md:px-6" /> }>
+        <VirtualMessageList
+          messages={messages}
+          isTyping={isTyping}
+          onRetry={onRetry}
+          onFeedback={onFeedback as any}
+          className={className}
+        />
+      </Suspense>
+    )
   }
 
   return (
