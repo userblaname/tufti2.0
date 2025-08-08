@@ -26,9 +26,24 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
     }
 
     const data = await response.json();
-    const aiMessage = data.choices[0]?.message?.content;
+    const message = data?.choices?.[0]?.message;
+    let aiMessage: string | undefined;
 
-    if (!aiMessage) {
+    if (message) {
+      // Newer Azure/OpenAI models may return content as an array of parts
+      const content = message.content as unknown;
+      if (typeof content === 'string') {
+        aiMessage = content;
+      } else if (Array.isArray(content)) {
+        // Join any text parts together
+        aiMessage = content
+          .filter((part: any) => part?.type === 'text' && typeof part?.text === 'string')
+          .map((part: any) => part.text)
+          .join('') || undefined;
+      }
+    }
+
+    if (!aiMessage || aiMessage.trim().length === 0) {
       throw new Error("The AI response was not in the expected format.");
     }
 
