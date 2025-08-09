@@ -2,8 +2,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useChat } from '@/hooks/useChat'
 import Header from './chat/Header'
 import MessageList from './chat/MessageList'
+import Suggestions from './chat/Suggestions'
 import ChatInput from './chat/ChatInput'
 import type { UserProfile } from '@/lib/types'
+import { buildSuggestions } from '@/lib/tufti/suggestions'
 
 interface ChatProps {
   userProfile: UserProfile
@@ -62,15 +64,21 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
               onFeedback={updateMessageFeedback}
             />
           ) : (
-            <motion.div
-              key="no-messages"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex items-center justify-center text-gray-500"
-            >
-              Send a message to start the conversation.
-            </motion.div>
+            <>
+              <Suggestions
+                suggestions={buildSuggestions(userProfile)}
+                onSelect={(s) => sendMessage(s.prompt)}
+              />
+              <motion.div
+                key="no-messages"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex-1 flex items-center justify-center text-gray-500"
+              >
+                Send a message to start the conversation.
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
 
