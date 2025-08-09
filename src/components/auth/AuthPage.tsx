@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Suspense } from 'react'
 import { Auth } from '@supabase/auth-ui-react';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
@@ -85,16 +85,32 @@ const PatternCircle = ({ className }: { className?: string }) => (
   />
 );
 
-const tuftiMessages = [
-  "You are about to step into your own reality. Are you aware?",
-  "Attention, dear one. Your intention is the key.",
-  "You are not a passenger. You are the scriptwriter.",
-  "Pause. Observe yourself as you sign in. This is the beginning.",
-  "Remember: Reality responds to your gaze. Where will you look today?",
+const TUFTI_OPENING_LINES = [
+  "A new frame opens. Where shall we place your gaze first?",
+  "Your gaze composes reality. What intention do you set now?",
+  "We begin not with control, but with intention. What is yours?",
+  "Two screens on: you and the world. Which scene shall we light?",
+  "The reel is ready, dear one. What shall the next frame contain?",
+  "Step into awareness. What scene are we composing today?",
 ];
 
 const AuthPage: React.FC = () => {
   const { supabase, signInWithGoogle, isLoading, authError } = useAuth();
+  const seededLines = useMemo(() => {
+    if (typeof window === 'undefined') return TUFTI_OPENING_LINES.slice(0, 3)
+    const key = 'tufti_opening_seed'
+    let seed = Number(localStorage.getItem(key))
+    if (!seed || Number.isNaN(seed)) {
+      seed = Math.floor(Math.random() * 100000)
+      try { localStorage.setItem(key, String(seed)) } catch {}
+    }
+    // deterministic shuffle by seed (simple LCG)
+    const lcg = (a: number) => () => (a = (a * 48271) % 0x7fffffff)
+    const rnd = lcg(seed)
+    const arr = [...TUFTI_OPENING_LINES]
+    arr.sort(() => (rnd() / 0x7fffffff) - 0.5)
+    return arr.slice(0, 3)
+  }, [])
   const [showEmail, setShowEmail] = useState(false)
 
   useEffect(() => {
@@ -124,11 +140,11 @@ const AuthPage: React.FC = () => {
       <PatternCircle className="w-[50vw] h-[50vw] md:w-[40vw] md:h-[40vw] top-[-25%] left-[-15%]" />
       <PatternCircle className="w-[45vw] h-[45vw] md:w-[35vw] md:h-[35vw] bottom-[-20%] right-[-10%]" />
 
-      {/* Tufti Dialogue Area - brief */}
+      {/* Tufti Dialogue Area - brief and randomized */}
       <div className="relative z-10 mb-6 text-center h-10 md:h-12 max-w-md">
         <TypeAnimation
           sequence={[
-            ...tuftiMessages.flatMap(msg => [msg, 6000, ' ', 500]), // Type, pause, clear, pause
+            ...seededLines.flatMap(msg => [msg, 6000, ' ', 500]),
           ]}
           speed={60}
           className="text-sm md:text-base text-gray-400 italic font-light"
