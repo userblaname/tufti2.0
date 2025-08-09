@@ -4,15 +4,16 @@ import { Copy, CheckCircle2, RotateCcw, ThumbsUp, ThumbsDown, AlertCircle } from
 import { Button } from '@/components/ui/button'
 import { useMessage } from '@/contexts/MessageContext'
 import { cn } from '@/lib/utils'
-import type { Message } from '@/lib/types'
+// import type { Message } from '@/lib/types'
 
 interface MessageActionsProps {
-  messageId: number
+  messageId: string
   text: string
   hasFeedback: boolean
   copied: boolean
   showRetry?: boolean
   className?: string
+  onCopied?: () => void
 }
 
 const actionVariants = {
@@ -30,12 +31,14 @@ const MessageActions = memo(({
   hasFeedback, 
   copied, 
   showRetry,
-  className 
+  className,
+  onCopied
 }: MessageActionsProps) => {
   const { updateMessageFeedback, retryMessage, copyMessage } = useMessage()
 
   const handleCopy = async () => {
     await copyMessage(text)
+    onCopied?.()
   }
 
   return (

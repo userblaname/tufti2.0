@@ -6,6 +6,9 @@ import Suggestions from './chat/Suggestions'
 import ChatInput from './chat/ChatInput'
 import type { UserProfile } from '@/lib/types'
 import { buildSuggestions } from '@/lib/tufti/suggestions'
+import { useEffect } from 'react'
+import { useToast } from '@/components/ui/use-toast'
+import { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastAction } from '@/components/ui/toast'
 
 interface ChatProps {
   userProfile: UserProfile
@@ -28,7 +31,16 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
     isLoadingHistory
   } = useChat(userProfile)
 
+  const { toast, toasts, removeToast } = useToast()
+
+  useEffect(() => {
+    if (chatError) {
+      toast({ title: 'Chat error', description: chatError, variant: 'destructive', duration: 5000 })
+    }
+  }, [chatError, toast])
+
   return (
+    <ToastProvider>
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -96,6 +108,16 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
         
         <div className="h-2 bg-gradient-to-r from-teal-accent/20 via-teal-accent to-teal-accent/20" />
       </div>
+      {/* Toasts */}
+      {toasts.map((t) => (
+        <Toast key={t.id} onOpenChange={(open) => { if (!open) removeToast(t.id) }}>
+          {t.title && <ToastTitle>{t.title}</ToastTitle>}
+          {t.description && <ToastDescription>{t.description}</ToastDescription>}
+          <ToastAction altText="Retry" onClick={() => retryLastMessage()}>Retry</ToastAction>
+        </Toast>
+      ))}
+      <ToastViewport />
     </motion.div>
+    </ToastProvider>
   )
 }

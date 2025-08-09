@@ -13,8 +13,14 @@ interface MessageProps {
   className?: string
 }
 
-const Message = memo(({ message, showRetry, isLastAIMessage, className }: MessageProps) => {
+const Message = memo(({ message, isLastAIMessage, className }: MessageProps) => {
   const [copied, setCopied] = useState(false)
+
+  // Temporary copied visual toggle when child copy occurs
+  const handleCopied = () => {
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   return (
     // Outermost div - Removed alignment and horizontal padding
@@ -42,7 +48,8 @@ const Message = memo(({ message, showRetry, isLastAIMessage, className }: Messag
                 text={message.text}
                 copied={copied}
                 hasFeedback={!!message.feedback}
-                showRetry={showRetry}
+                showRetry={Boolean(isLastAIMessage)}
+                onCopied={handleCopied}
               />
             </div>
             {isLastAIMessage && (

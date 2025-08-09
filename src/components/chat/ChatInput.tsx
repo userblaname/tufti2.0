@@ -1,6 +1,6 @@
 import { useState, useRef, memo, useEffect } from 'react'
 import { Plus, SlidersHorizontal, ArrowUp } from 'lucide-react'
-import { useInputAnimation } from '@/hooks/useInputAnimation'
+// import { useInputAnimation } from '@/hooks/useInputAnimation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useInputValidation } from '@/hooks/useInputValidation'
 import { useHapticFeedback } from '@/hooks/useHapticFeedback'
@@ -50,6 +50,7 @@ const ChatInput = memo(({
       success()
       onSendMessage(inputValue.trim())
       setInputValue('')
+      try { localStorage.removeItem('chat_draft') } catch {}
       clearError()
       inputRef.current?.focus()
     } else {
@@ -59,8 +60,12 @@ const ChatInput = memo(({
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     console.log("handleKeyPress called, key:", e.key);
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !(e.metaKey || e.ctrlKey)) {
       console.log("Enter pressed without shift. Preventing default and calling handleSend.");
+      e.preventDefault()
+      handleSend()
+    }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       handleSend()
     }
@@ -74,6 +79,20 @@ const ChatInput = memo(({
   const handleBlur = () => {
     setIsFocused(false)
   }
+
+  useEffect(() => {
+    // restore draft
+    try {
+      const draft = localStorage.getItem('chat_draft')
+      if (draft) setInputValue(draft)
+    } catch {}
+    inputRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    // persist draft
+    try { localStorage.setItem('chat_draft', inputValue) } catch {}
+  }, [inputValue])
 
   return (
     <motion.div
