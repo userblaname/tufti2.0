@@ -83,9 +83,8 @@ const VirtualMessageList = memo(({
                   transform: `translateY(${virtualRow.start}px)`
                 }}
               >
-                <Message 
+                  <Message 
                   message={message}
-                  showRetry={virtualRow.index === messages.length - 1}
                   isLastAIMessage={isLastAIMessage}
                 />
               </div>

@@ -44,11 +44,8 @@ const Message = memo(({ message, isLastAIMessage, className }: MessageProps) => 
               )}
             >
               <MessageActions
-                messageId={message.id}
                 text={message.text}
                 copied={copied}
-                hasFeedback={!!message.feedback}
-                showRetry={Boolean(isLastAIMessage)}
                 onCopied={handleCopied}
               />
             </div>

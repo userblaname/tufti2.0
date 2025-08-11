@@ -14,7 +14,7 @@ interface AuthContextProps {
   profileError: string | null
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
-  updateProfileAndCompleteOnboarding: (profileData: Partial<UserProfile>) => Promise<boolean>
+  updateProfileAndCompleteOnboarding: (profileData: Partial<UserProfile>, onboardingAnswers?: Record<string, string>) => Promise<boolean>
   supabase: typeof supabase
 }
 
@@ -141,7 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [user, isLoading]);
 
-  const updateProfileAndCompleteOnboarding = useCallback(async (profileData: Partial<UserProfile>): Promise<boolean> => {
+  const updateProfileAndCompleteOnboarding = useCallback(async (profileData: Partial<UserProfile>, _onboardingAnswers?: Record<string, string>): Promise<boolean> => {
     if (!user) {
       setProfileError("Cannot update profile: No user logged in.")
       return false
