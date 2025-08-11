@@ -116,8 +116,9 @@ export function useChat(userProfile: UserProfile) {
   const sendMessage = useCallback(async (text: string) => {
     if (isSending) return;
 
-    // During onboarding, treat any typed input as the answer to the current question
-    if (isOnboarding && currentQuestion) {
+    // During onboarding: only intercept typed input for TEXT questions.
+    // For CHOICE steps, let typed messages go to Tufti as normal chat.
+    if (isOnboarding && currentQuestion && currentQuestion.type === 'text') {
       handleOnboardingAnswer(text, text, currentQuestion.nextStep);
       return;
     }
