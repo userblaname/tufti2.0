@@ -4,8 +4,6 @@
 
 [functions]
   directory = "netlify/functions"
-  # This ensures that express and its dependencies are bundled with the function
-  external_node_modules = ["express", "openai"]
   node_bundler = "esbuild"
 
 [[redirects]]
@@ -25,4 +23,4 @@
     X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
-    Content-Security-Policy = "default-src 'self'; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;"
+    Content-Security-Policy = "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self';"

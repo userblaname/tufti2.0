@@ -1,4 +1,5 @@
 import { useState, useRef, memo, useEffect } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { Plus, SlidersHorizontal, ArrowUp } from 'lucide-react'
 // import { useInputAnimation } from '@/hooks/useInputAnimation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -7,6 +8,7 @@ import { useHapticFeedback } from '@/hooks/useHapticFeedback'
 import { cn } from '@/lib/utils'
 import TextareaAutosize from 'react-textarea-autosize'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void
@@ -21,47 +23,48 @@ const ChatInput = memo(({
   isGenerating,
   className 
 }: ChatInputProps) => {
-  console.log("ChatInput rendering. isGenerating:", isGenerating);
-
   const [inputValue, setInputValue] = useState('')
   const [isFocused, setIsFocused] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { error, validate, clearError } = useInputValidation()
   const { lightTap, success } = useHapticFeedback()
 
+  useHotkeys('mod+k', (e) => {
+    e.preventDefault()
+    inputRef.current?.focus()
+  })
+
   useEffect(() => {
-    console.log('ChatInput State:', { inputValue, disabled, isGenerating });
-  }, [inputValue, disabled, isGenerating]);
+    // restore draft
+    try {
+      const draft = localStorage.getItem('chat_draft')
+      if (draft) setInputValue(draft)
+    } catch {}
+    inputRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    // persist draft
+    try { localStorage.setItem('chat_draft', inputValue) } catch {}
+  }, [inputValue])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    console.log("handleInputChange called, value:", e.target.value);
     setInputValue(e.target.value);
   };
 
   const handleSend = async () => {
-    console.log('handleSend attempt:', { 
-      inputValue: inputValue,
-      trimmed: inputValue.trim(), 
-      disabled: disabled, 
-      conditionMet: inputValue.trim() && !disabled && validate(inputValue)
-    });
     if (inputValue.trim() && !disabled && validate(inputValue)) {
-      console.log('--- DEV_LOG: ChatInput handleSend calling onSendMessage ---');
       success()
       onSendMessage(inputValue.trim())
       setInputValue('')
       try { localStorage.removeItem('chat_draft') } catch {}
       clearError()
       inputRef.current?.focus()
-    } else {
-      console.log('Send condition NOT MET.');
     }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    console.log("handleKeyPress called, key:", e.key);
     if (e.key === 'Enter' && !e.shiftKey && !(e.metaKey || e.ctrlKey)) {
-      console.log("Enter pressed without shift. Preventing default and calling handleSend.");
       e.preventDefault()
       handleSend()
     }
@@ -79,20 +82,6 @@ const ChatInput = memo(({
   const handleBlur = () => {
     setIsFocused(false)
   }
-
-  useEffect(() => {
-    // restore draft
-    try {
-      const draft = localStorage.getItem('chat_draft')
-      if (draft) setInputValue(draft)
-    } catch {}
-    inputRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    // persist draft
-    try { localStorage.setItem('chat_draft', inputValue) } catch {}
-  }, [inputValue])
 
   return (
     <motion.div
@@ -189,23 +178,32 @@ const ChatInput = memo(({
           </div>
 
           <div className="relative w-8 h-8 flex-shrink-0">
-            <Button
-              key="send"
-              onClick={handleSend}
-              disabled={!inputValue.trim() || disabled}
-              size="icon"
-              className={cn(
-                "absolute inset-0 w-8 h-8 rounded-xl flex items-center justify-center transition-colors duration-200",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-                isFocused ? 
-                  'bg-gray-800 hover:bg-gray-900 text-white disabled:bg-gray-300 disabled:text-gray-500 focus-visible:ring-gray-800' : 
-                  'bg-teal-accent/20 hover:bg-teal-accent/30 text-teal-accent disabled:bg-navy-deep/50 disabled:text-gray-500 focus-visible:ring-teal-accent',
-                "disabled:cursor-not-allowed"
-              )}
-              aria-label="Send message"
-            >
-              <ArrowUp className="w-4 h-4" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    key="send"
+                    onClick={handleSend}
+                    disabled={!inputValue.trim() || disabled}
+                    size="icon"
+                    className={cn(
+                      "absolute inset-0 w-8 h-8 rounded-xl flex items-center justify-center transition-colors duration-200",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+                      isFocused ? 
+                        'bg-gray-800 hover:bg-gray-900 text-white disabled:bg-gray-300 disabled:text-gray-500 focus-visible:ring-gray-800' : 
+                        'bg-teal-accent/20 hover:bg-teal-accent/30 text-teal-accent disabled:bg-navy-deep/50 disabled:text-gray-500 focus-visible:ring-teal-accent',
+                      "disabled:cursor-not-allowed"
+                    )}
+                    aria-label="Send message"
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Send message (⌘+↵)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </div>
