@@ -1,6 +1,6 @@
 // src/hooks/useChat.ts
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAiResponse } from '@/lib/chat-service';
 import type { Message, UserProfile } from '@/lib/types';
@@ -18,8 +18,12 @@ export function useChat(userProfile: UserProfile) {
   // --- Onboarding State ---
   const [isOnboarding, setIsOnboarding] = useState(!isOnboardingComplete);
   const [onboardingStep, setOnboardingStep] = useState(isOnboardingComplete ? -1 : 1);
-  const [onboardingAnswers, setOnboardingAnswers] = useState<Record<string, string>>({});
+  // Local copy of answers for potential UI needs; kept in ref for logic
+  const [, setOnboardingAnswers] = useState<Record<string, string>>({});
   const [currentQuestion, setCurrentQuestion] = useState<OnboardingQuestion | null>(null);
+  // Avoid duplicate prompts (StrictMode) and stale data
+  const emittedStepsRef = useRef<Set<number>>(new Set());
+  const onboardingAnswersRef = useRef<Record<string, string>>({});
 
   // --- Regular Chat State ---
   const [isTyping, setIsTyping] = useState(false);
@@ -31,16 +35,21 @@ export function useChat(userProfile: UserProfile) {
   useEffect(() => {
     if (!isOnboarding) return;
 
+    // prevent duplicate emissions for the same step (React StrictMode)
+    if (emittedStepsRef.current.has(onboardingStep)) return;
+
     const question = onboardingScript.find(q => q.step === onboardingStep);
 
     if (question) {
+      emittedStepsRef.current.add(onboardingStep);
       setCurrentQuestion(question);
-      // Use a timeout to make Tufti's question appear more naturally after the user's answer
+      // Natural delay for Tufti's line
       setTimeout(() => {
+        const nameForPrompt = onboardingAnswersRef.current.name || userProfile.name || 'Director';
         const tuftiPrompt = typeof question.prompt === 'function' 
-          ? question.prompt(onboardingAnswers.name || userProfile.name || 'Director') 
+          ? (question.prompt as (n: string) => string)(nameForPrompt)
           : question.prompt;
-        
+
         const tuftiMessage: Message = {
           id: generateUniqueId(),
           text: tuftiPrompt,
@@ -48,10 +57,11 @@ export function useChat(userProfile: UserProfile) {
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, tuftiMessage]);
-      }, 700);
-    } else if (onboardingStep === -1) {
-      // Onboarding is finished, save data and transition to normal chat
-      setIsGenerating(true); // Show a final loading indicator
+      }, 500);
+    } else if (onboardingStep === -1 && !emittedStepsRef.current.has(-1)) {
+      // Finalization step
+      emittedStepsRef.current.add(-1);
+      setIsGenerating(true);
       const finalBriefingMessage: Message = {
         id: generateUniqueId(),
         text: "Thank you. I am calibrating the film... Please give me a moment.",
@@ -60,14 +70,13 @@ export function useChat(userProfile: UserProfile) {
       };
       setMessages(prev => [...prev, finalBriefingMessage]);
 
-      // Call the function to generate dossier and save profile
-      ;(updateProfileAndCompleteOnboarding as any)({ name: onboardingAnswers.name }, onboardingAnswers)
+      ;(updateProfileAndCompleteOnboarding as any)({ name: onboardingAnswersRef.current.name }, onboardingAnswersRef.current)
         .then(() => {
           setIsOnboarding(false);
           setIsGenerating(false);
           const welcomeMessage: Message = {
             id: generateUniqueId(),
-            text: `Perfect. The scene is set, ${onboardingAnswers.name}. The camera is rolling. What shall we focus on first?`,
+            text: `Perfect. The scene is set, ${onboardingAnswersRef.current.name}. The camera is rolling. What shall we focus on first?`,
             sender: 'tufti',
             timestamp: new Date()
           };
@@ -78,7 +87,7 @@ export function useChat(userProfile: UserProfile) {
           console.error(err);
         });
     }
-  }, [isOnboarding, onboardingStep, onboardingAnswers.name, userProfile.name]);
+  }, [isOnboarding, onboardingStep, userProfile.name]);
 
   const handleOnboardingAnswer = useCallback((answerValue: string, answerLabel: string, nextStep: number) => {
     if (!currentQuestion) return;
@@ -91,7 +100,11 @@ export function useChat(userProfile: UserProfile) {
     };
     setMessages(prev => [...prev, userAnswerMessage]);
 
-    setOnboardingAnswers(prev => ({ ...prev, [currentQuestion.key]: answerValue }));
+    setOnboardingAnswers(prev => {
+      const next = { ...prev, [currentQuestion.key]: answerValue };
+      onboardingAnswersRef.current = next;
+      return next;
+    });
 
     // Immediately clear current question so input re-enables for next interaction
     setCurrentQuestion(null);
