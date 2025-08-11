@@ -63,8 +63,6 @@ const Message = memo(({ message, onRetry, onFeedback }: MessageProps) => {
             >
               <MessageActions
                 onCopy={handleCopy}
-                onRetry={onRetry}
-                onFeedback={onFeedback}
                 copied={copied}
                 hasFeedback={!!message.feedback}
               />

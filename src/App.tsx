@@ -3,7 +3,6 @@ import Chat from './components/Chat';
 import { useAuth } from './contexts/AuthContext';
 // import SignInButton from './components/auth/SignInButton'; // Old button removed
 import AuthPage from './components/auth/AuthPage'; // Import the new AuthPage
-import OnboardingForm from './components/onboarding/OnboardingForm';
 import type { UserProfile } from '@/lib/types';
 
 // Loading Screen Component
@@ -39,13 +38,8 @@ function App() {
     return <AuthPage />;
   }
 
-  // User exists, but onboarding isn't complete yet
-  if (!isOnboardingComplete) {
-    return <OnboardingForm />;
-  }
-
-  // User exists AND onboarding is complete AND profile is loaded
-  if (userProfile) { 
+  // Logged-in user: always go to Chat; conversational onboarding handles the rest
+  if (userProfile) {
     return (
       <>
         <Chat userProfile={userProfile} signOut={signOut} /> 

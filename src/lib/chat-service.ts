@@ -20,6 +20,8 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
         ? conversationHistory
         : [
             { role: 'system', content: TUFTI_SYSTEM_PROMPT },
+            // Force dialog cadence: nudge the assistant to respond briefly and ask a question back
+            { role: 'system', content: 'Policy: Keep replies brief (2–6 sentences). End with a single, clear question.' },
             ...conversationHistory,
           ]
 

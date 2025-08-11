@@ -1,14 +1,14 @@
-import { motion, AnimatePresence } from 'framer-motion'
-import { useChat } from '@/hooks/useChat'
-import Header from './chat/Header'
-import MessageList from './chat/MessageList'
-import Suggestions from './chat/Suggestions'
-import ChatInput from './chat/ChatInput'
-import type { UserProfile } from '@/lib/types'
-import { buildSuggestions } from '@/lib/tufti/suggestions'
-import { useEffect } from 'react'
-import { useToast } from '@/components/ui/use-toast'
-import { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastAction } from '@/components/ui/toast'
+// src/components/Chat.tsx
+
+import { motion } from 'framer-motion';
+import { useChat } from '@/hooks/useChat';
+import Header from './chat/Header';
+import MessageList from './chat/MessageList';
+import ChatInput from './chat/ChatInput';
+import { OnboardingOptions } from './onboarding/OnboardingOptions'; // Import our new component
+import type { UserProfile } from '@/lib/types';
+import { useToast } from '@/components/ui/use-toast';
+import { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastAction } from '@/components/ui/toast';
 
 interface ChatProps {
   userProfile: UserProfile
@@ -16,8 +16,6 @@ interface ChatProps {
 }
 
 export default function Chat({ userProfile, signOut }: ChatProps) {
-  console.log("--- DEV_LOG: Chat component rendered ---");
-  // Use chat hook first to avoid order violations
   const { 
     messages, 
     isTyping, 
@@ -28,23 +26,21 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
     retryLastMessage,
     clearChat,
     chatError,
-    isLoadingHistory
-  } = useChat(userProfile)
+    isLoadingHistory,
+    // Get the new state from our hook
+    isOnboarding,
+    currentOnboardingQuestion,
+    handleOnboardingAnswer,
+  } = useChat(userProfile);
 
-  const { toast, toasts, removeToast } = useToast()
-
-  useEffect(() => {
-    if (chatError) {
-      toast({ title: 'Chat error', description: chatError, variant: 'destructive', duration: 5000 })
-    }
-  }, [chatError, toast])
+  const { toast, toasts, removeToast } = useToast();
 
   return (
     <ToastProvider>
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, ease: "easeInOut" }}
       className="flex flex-col h-screen bg-navy-deep relative"
     >
       <div className="relative z-10 flex flex-col h-full">
@@ -56,43 +52,20 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
           signOut={signOut}
         />
         
-        <AnimatePresence mode="wait">
-          {isLoadingHistory ? (
-            <motion.div
-              key="history-loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex items-center justify-center text-gray-400"
-            >
-              Loading history...
-            </motion.div>
-          ) : messages.length > 0 ? (
-            <MessageList
-              key="messages"
-              messages={messages}
-              isTyping={isTyping}
-              onRetry={retryLastMessage}
-              onFeedback={updateMessageFeedback}
-            />
-          ) : (
-            <>
-              <Suggestions
-                suggestions={buildSuggestions(userProfile)}
-                onSelect={(s) => sendMessage(s.prompt)}
-              />
-              <motion.div
-                key="no-messages"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 flex items-center justify-center text-gray-500"
-              >
-                Send a message to start the conversation.
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+        <MessageList
+          messages={messages}
+          isTyping={isTyping || isGenerating} // Show typing indicator during generation
+          onRetry={retryLastMessage}
+          onFeedback={updateMessageFeedback}
+        />
+
+        {/* Conditionally render onboarding options */}
+        {isOnboarding && currentOnboardingQuestion?.type === 'choice' && (
+          <OnboardingOptions 
+            question={currentOnboardingQuestion}
+            onAnswer={handleOnboardingAnswer}
+          />
+        )}
 
         {chatError && (
           <div className="px-4 py-2 text-center text-red-500 bg-red-900/30 border-t border-b border-red-800/50 text-sm">
@@ -102,13 +75,14 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
 
         <ChatInput 
           onSendMessage={sendMessage} 
-          disabled={isTyping || isGenerating || isSending}
+          // Disable input for choice questions during onboarding or while generating a response
+          disabled={isSending || isGenerating || (isOnboarding && currentOnboardingQuestion?.type === 'choice')}
           isGenerating={isGenerating}
         />
         
         <div className="h-2 bg-gradient-to-r from-teal-accent/20 via-teal-accent to-teal-accent/20" />
       </div>
-      {/* Toasts */}
+      
       {toasts.map((t) => (
         <Toast key={t.id} onOpenChange={(open) => { if (!open) removeToast(t.id) }}>
           {t.title && <ToastTitle>{t.title}</ToastTitle>}
@@ -119,5 +93,5 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
       <ToastViewport />
     </motion.div>
     </ToastProvider>
-  )
+  );
 }
