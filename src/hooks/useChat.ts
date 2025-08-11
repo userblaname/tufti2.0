@@ -103,14 +103,11 @@ export function useChat(userProfile: UserProfile) {
   const sendMessage = useCallback(async (text: string) => {
     if (isSending) return;
 
-    // Handle text input during onboarding (for the name)
-    if (isOnboarding && currentQuestion?.type === 'text') {
+    // During onboarding, treat any typed input as the answer to the current question
+    if (isOnboarding && currentQuestion) {
       handleOnboardingAnswer(text, text, currentQuestion.nextStep);
       return;
     }
-    
-    // Block regular chat if onboarding is not complete
-    if (isOnboarding) return;
 
     setIsSending(true);
     setChatError(null);
