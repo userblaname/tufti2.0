@@ -75,8 +75,8 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
 
         <ChatInput 
           onSendMessage={sendMessage} 
-          // Disable input for choice questions during onboarding or while generating a response
-          disabled={isSending || isGenerating || (isOnboarding && currentOnboardingQuestion?.type === 'choice')}
+          // Keep input usable during onboarding choice steps
+          disabled={isSending || isGenerating}
           isGenerating={isGenerating}
         />
         

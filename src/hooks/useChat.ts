@@ -92,7 +92,12 @@ export function useChat(userProfile: UserProfile) {
     setMessages(prev => [...prev, userAnswerMessage]);
 
     setOnboardingAnswers(prev => ({ ...prev, [currentQuestion.key]: answerValue }));
-    setOnboardingStep(nextStep);
+
+    // Immediately clear current question so input re-enables for next interaction
+    setCurrentQuestion(null);
+
+    // Progress to next step after a tick to avoid blocking input
+    setTimeout(() => setOnboardingStep(nextStep), 0);
   }, [currentQuestion]);
 
   const sendMessage = useCallback(async (text: string) => {
