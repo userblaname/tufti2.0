@@ -92,7 +92,7 @@ export async function getAiResponse(conversationHistory: ChatMessage[]): Promise
     };
 
     // Prefer choices.message.content when present; otherwise fall back to best-effort extraction
-    const preferred = data?.content ?? data?.choices?.[0]?.message?.content;
+    const preferred = data?.choices?.[0]?.message?.content;
     let aiMessage: string | undefined = extractText(preferred).trim();
     if (!aiMessage) aiMessage = extractText(data).trim();
     if (!aiMessage) aiMessage = extractLongestString(data);

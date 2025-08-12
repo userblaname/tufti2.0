@@ -75,7 +75,7 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
 
         <ChatInput 
           onSendMessage={sendMessage} 
-          // Keep input usable during onboarding choice steps
+          // Allow typing during onboarding; only block while sending/generating
           disabled={isSending || isGenerating}
           isGenerating={isGenerating}
         />
