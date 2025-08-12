@@ -60,11 +60,12 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
     return (
       <div
         className={cn(
-          "relative rounded-xl", // Keep rounding
-          "bg-white", // Updated user message background to white
-          "pl-2.5 py-2.5 pr-6", 
-          "flex items-start gap-2", // Changed gap from 3 to 2
-          "max-w-2xl break-words", // Add max-width and break-words
+          "relative rounded-xl",
+          // Dark bubble to avoid white flash
+          "bg-white/5 border border-white/10",
+          "pl-2.5 py-2.5 pr-6",
+          "flex items-start gap-2",
+          "max-w-2xl break-words",
           className
         )}
       >
@@ -76,11 +77,11 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
         {/* Text Content Area */}
         <div 
           className={cn(
-            "prose prose-sm md:prose-base", // Removed max-w-none previously, relying on parent constraint
-            "font-modern text-navy-deep", // Updated user message text color to navy-deep
-            "prose-p:text-navy-deep prose-strong:text-navy-deep", // Ensure specific prose elements are also navy-deep
-            "py-0.5", // Added vertical padding for text alignment like Claude
-            "break-words" // Add break-words here as well
+            "prose prose-invert prose-sm md:prose-base",
+            "font-modern text-gray-200",
+            "prose-p:text-gray-200 prose-strong:text-gray-100",
+            "py-0.5",
+            "break-words"
           )}
         >
           {content}
