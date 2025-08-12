@@ -99,13 +99,13 @@ const ChatInput = memo(({
       className={cn("p-3", className)}
       role="form"
     >
-      <div className={cn(
-        "relative max-w-3xl mx-auto flex flex-col gap-2.5 rounded-xl p-3",
-        "transition-all duration-500 ease-in-out",
-        isFocused 
-          ? 'bg-white border-teal-accent shadow-lg'
-          : 'bg-navy-deep/60 backdrop-blur-sm border border-teal-accent/20 shadow-md'
-      )}>
+        <div className={cn(
+          "relative max-w-3xl mx-auto flex flex-col gap-2.5 rounded-xl p-3",
+          "transition-all duration-500 ease-in-out",
+          isFocused 
+            ? 'bg-navy-deep/80 border-teal-accent/40 shadow-lg'
+            : 'bg-navy-deep/60 backdrop-blur-sm border border-teal-accent/20 shadow-md'
+        )}>
         <div className="relative">
           <TextareaAutosize
             ref={inputRef as any}
@@ -126,7 +126,7 @@ const ChatInput = memo(({
               "focus-visible:outline-none",
               "rounded-lg",
               isFocused 
-                ? 'text-gray-800 placeholder:text-gray-500' 
+                ? 'text-gray-100 placeholder:text-gray-400' 
                 : 'text-gray-100 placeholder:text-gray-400',
               error && "ring-1 ring-red-500"
             )}
