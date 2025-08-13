@@ -134,7 +134,7 @@ const AuthPage: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden relative bg-gradient-to-br from-indigo-950 via-slate-950 to-tufti-black text-gray-200 flex flex-col items-center justify-center p-4 font-modern">
+    <div className="h-screen w-screen overflow-hidden relative bg-gradient-to-br from-navy-deep via-slate-950 to-tufti-black text-gray-200 flex flex-col items-center justify-center p-4 font-modern">
       {/* Backgrounds */}
       <AnimatedGridBackground />
       <PatternCircle className="w-[50vw] h-[50vw] md:w-[40vw] md:h-[40vw] top-[-25%] left-[-15%]" />
@@ -155,7 +155,7 @@ const AuthPage: React.FC = () => {
 
       {/* Auth Form Container */}
       <motion.div 
-        className="relative z-10 w-full max-w-sm sm:max-w-md p-6 md:p-8 bg-black/20 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl"
+        className="relative z-10 w-full max-w-sm sm:max-w-md p-6 md:p-8 bg-black/25 backdrop-blur-md border border-teal-accent/20 rounded-none shadow-2xl transition-all duration-300 hover:border-teal-accent/40 hover:shadow-[0_0_0_1px_rgba(56,178,172,0.35)]"
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
@@ -168,13 +168,13 @@ const AuthPage: React.FC = () => {
 
         {/* Primary: Google OAuth */}
         <div className="space-y-3">
-          <Button onClick={signInWithGoogle} disabled={isLoading} className="w-full h-11 text-base">
+          <Button onClick={signInWithGoogle} disabled={isLoading} className="w-full h-11 text-base rounded-none bg-teal-accent/20 hover:bg-teal-accent/30 text-teal-accent border border-teal-accent/30 shadow-[inset_0_0_0_1px_rgba(56,178,172,0.25)] hover:shadow-[0_0_18px_rgba(56,178,172,0.25)] transition-all">
             Continue with Google
           </Button>
           <button
             type="button"
             onClick={() => setShowEmail(v => !v)}
-            className="w-full text-center text-sm text-gray-300 hover:text-white underline underline-offset-4"
+            className="w-full text-center text-sm text-gray-300 hover:text-white underline underline-offset-4 transition-colors"
             aria-expanded={showEmail}
           >
             {showEmail ? 'Hide email options' : 'Use email instead'}
@@ -187,7 +187,15 @@ const AuthPage: React.FC = () => {
             <Suspense fallback={<div className="text-center text-gray-400 py-6">Loading…</div>}>
               <Auth
                 supabaseClient={supabase}
-                appearance={{ theme: ThemeSupa, className: { button: 'focus:ring-2 focus:ring-blue-400' } }}
+                appearance={{ 
+                  theme: ThemeSupa, 
+                  className: { 
+                    button: 'rounded-none h-10 bg-teal-accent/20 hover:bg-teal-accent/30 text-teal-accent border border-teal-accent/30 focus:ring-2 focus:ring-teal-accent/40',
+                    input: 'rounded-none bg-white/5 border-white/20 focus:border-teal-accent focus:ring-1 focus:ring-teal-accent/40 text-gray-100 placeholder:text-gray-400',
+                    label: 'text-gray-300',
+                    anchor: 'text-teal-accent hover:text-teal-accent/80'
+                  } 
+                }}
                 providers={[]}
                 view="sign_in"
               />
@@ -207,7 +215,7 @@ const AuthPage: React.FC = () => {
 
         {/* Loading overlay */}
         {isLoading && (
-          <div role="dialog" aria-label="Signing in" className="absolute inset-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <div role="dialog" aria-label="Signing in" className="absolute inset-0 rounded-none bg-black/40 backdrop-blur-sm flex items-center justify-center">
             <span className="text-sm text-gray-200">Redirecting to Google…</span>
           </div>
         )}
