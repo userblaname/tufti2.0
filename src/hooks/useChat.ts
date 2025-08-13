@@ -6,6 +6,7 @@ import { getAiResponse } from '@/lib/chat-service';
 import type { Message, UserProfile } from '@/lib/types';
 import { onboardingScript, OnboardingQuestion } from '@/lib/onboardingQuestions';
 import { TUFTI_SYSTEM_PROMPT } from '@/lib/tufti';
+import { getOrCreateConversation, saveMessage, fetchMessages } from '@/lib/supabase/conversations'
 
 // A simple local ID generator for messages created on the client
 const generateUniqueId = () => `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -29,6 +30,19 @@ export function useChat(userProfile: UserProfile) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+
+  // Effect to hydrate latest conversation messages after auth/profile ready
+  useEffect(() => {
+    (async () => {
+      if (!session?.user?.id || isOnboarding) return
+      const conversationId = await getOrCreateConversation(session.user.id)
+      if (!conversationId) return
+      const rows = await fetchMessages(conversationId)
+      if (rows.length > 0) {
+        setMessages(rows.map(r => ({ id: r.id, text: r.text, sender: r.role === 'user' ? 'user' : 'tufti', timestamp: new Date(r.created_at) } as Message)))
+      }
+    })()
+  }, [session?.user?.id, isOnboarding])
 
   // Effect to drive the onboarding conversation
   useEffect(() => {
@@ -118,6 +132,12 @@ export function useChat(userProfile: UserProfile) {
 
     const userMessage: Message = { id: generateUniqueId(), text, sender: 'user', timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
+    try {
+      const conversationId = await getOrCreateConversation(session?.user?.id as string)
+      if (conversationId && session?.user?.id) {
+        await saveMessage({ conversationId, userId: session.user.id, role: 'user', text })
+      }
+    } catch (e) { console.warn('save user message failed', e) }
 
     // Construct history for the AI
     const conversationHistory = [...messages, userMessage];
@@ -140,6 +160,12 @@ export function useChat(userProfile: UserProfile) {
 
       const tuftiResponse: Message = { id: generateUniqueId(), text: aiReply, sender: 'tufti', timestamp: new Date() };
       setMessages(prev => [...prev, tuftiResponse]);
+      try {
+        const conversationId = await getOrCreateConversation(session?.user?.id as string)
+        if (conversationId && session?.user?.id) {
+          await saveMessage({ conversationId, userId: session.user.id, role: 'tufti', text: aiReply })
+        }
+      } catch (e) { console.warn('save ai message failed', e) }
 
     } catch (error: any) {
       setChatError(error.message || "An error occurred.");
