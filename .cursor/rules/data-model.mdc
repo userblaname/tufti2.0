@@ -20,6 +20,7 @@ This document outlines the key Supabase tables used in the application.
     -   `id` (uuid, primary key): Foreign key referencing `auth.users.id`.
     -   `created_at` (timestamptz): Timestamp of creation.
     -   `onboarding_complete` (boolean): Tracks if the user has completed the initial profile setup (default `false`).
+    -   `onboarding_answers` (jsonb): Key/value answers from the 10-step conversational onboarding.
     -   `name` (text, nullable): User's display name.
     -   `email` (text, nullable): User's email.
     -   `avatar_url` (text, nullable): URL for user's avatar.
@@ -46,8 +47,8 @@ This document outlines the key Supabase tables used in the application.
     -   `id` (uuid, primary key): Unique identifier for the message.
     -   `conversation_id` (uuid): Foreign key referencing `public.conversations.id`.
     -   `user_id` (uuid): Foreign key referencing `auth.users.id`.
-    -   `sender` (text): Indicates who sent the message ('user' or 'ai').
-    -   `content` (text): The text content of the message.
+    -   `role` (text): 'user' or 'tufti'.
+    -   `text` (text): The message content.
     -   `created_at` (timestamptz): Timestamp of creation.
 -   **Foreign Key:** `conversation_id` references `public.conversations(id)` with **`ON DELETE CASCADE`** added.
 -   **RLS:** Requires policies allowing authenticated users to `INSERT` and `SELECT` messages from their own conversations. A `DELETE` policy is also recommended for completeness, though cascade delete handles deletion tied to conversations.

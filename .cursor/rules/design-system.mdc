@@ -34,7 +34,7 @@ This document outlines key visual design decisions for the project.
 
 ## Chat Presentation
 
--   **AI messages (Tufti):** bubble-less, `prose prose-invert`, teal headings, gold emphasis, crimson for key h2 callouts
+-   **AI messages (Tufti):** bubble-less, `prose prose-invert`, teal headings, gold emphasis, crimson for key h2 callouts; personalize with `userProfile.name` or `onboarding_answers.name`
 -   **User messages:** dark rounded bubble (`rounded-xl`, `bg-white/7`), small avatar fallback, max width 2xl
 -   **Suggestions:** single row above input, `max-w-3xl`, h-10 rounded-xl chips; hidden during onboarding and when last AI message is a question; context-aware with confidence gate (>=2 heuristics)
 
@@ -42,6 +42,10 @@ This document outlines key visual design decisions for the project.
 
 -   **Dock:** sticky bottom sheet `max-w-3xl`, rounded-xl glass; always-visible border; ring on focus
 -   **Buttons:** teal accents; keyboard accessible; clear focus styles
+
+## Auth & Backdrop
+
+-   Login screen uses `CinemaBackdrop` (filmstrips on both sides, central spotlight), with sharp-corner card, teal glow on hover, and brand gradient.
 
 ## Icons
 
