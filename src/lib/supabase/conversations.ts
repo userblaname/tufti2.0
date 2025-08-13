@@ -31,14 +31,33 @@ export async function createConversation(userId: string): Promise<string | null>
   return data?.id ?? null
 }
 
+const cacheKey = (userId: string) => `tufti_conversation_id:${userId}`
+
+export function clearCachedConversationId(userId: string) {
+  if (typeof window === 'undefined') return
+  try { localStorage.removeItem(cacheKey(userId)) } catch {}
+}
+
 export async function getOrCreateConversation(userId: string): Promise<string | null> {
-  const cached = typeof window !== 'undefined' ? localStorage.getItem('tufti_conversation_id') : null
-  if (cached) return cached
+  // Try cached id but verify ownership
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(cacheKey(userId))
+    if (cached) {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('id', cached)
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (!error && data?.id) return cached
+      clearCachedConversationId(userId)
+    }
+  }
 
   const existing = await getLatestConversation(userId)
   const id = existing ?? (await createConversation(userId))
   if (id && typeof window !== 'undefined') {
-    try { localStorage.setItem('tufti_conversation_id', id) } catch {}
+    try { localStorage.setItem(cacheKey(userId), id) } catch {}
   }
   return id
 }
@@ -48,7 +67,11 @@ export async function saveMessage(params: { conversationId: string, userId: stri
   const { error } = await supabase
     .from('messages')
     .insert({ conversation_id: conversationId, user_id: userId, role, text })
-  if (error) console.error('saveMessage error', error)
+  if (error) {
+    console.error('saveMessage error', error)
+    return { ok: false, error }
+  }
+  return { ok: true }
 }
 
 export interface DbMessageRow {
