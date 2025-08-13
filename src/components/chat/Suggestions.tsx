@@ -14,7 +14,7 @@ export const Suggestions: React.FC<Props> = ({ suggestions, onSelect, className 
   if (!suggestions || suggestions.length === 0) return null
 
   return (
-    <div className={cn('px-4 md:px-6 py-2 border-b border-white/10', className)}>
+    <div className={cn('px-4 md:px-6 py-2 border-t border-white/10 bg-navy-deep/70', className)}>
       <ScrollArea className="w-full">
         <div className="flex items-center gap-2 overflow-x-auto">
           {suggestions.map((s) => (
@@ -22,7 +22,7 @@ export const Suggestions: React.FC<Props> = ({ suggestions, onSelect, className 
               key={s.key}
               variant="outline"
               size="sm"
-              className="shrink-0 h-9 rounded-full bg-white/5 text-gray-100 border-white/15 hover:bg-white/10"
+              className="shrink-0 h-9 rounded-xl bg-white/5 text-gray-100 border-white/15 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-teal-accent"
               onClick={() => onSelect(s)}
               aria-label={`Ask: ${s.label}`}
             >

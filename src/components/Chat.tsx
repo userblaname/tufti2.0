@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { useChat } from '@/hooks/useChat';
 import Header from './chat/Header';
 import MessageList from './chat/MessageList';
+import Suggestions from './chat/Suggestions'
+import { buildSuggestions } from '@/lib/tufti/suggestions'
 import ChatInput from './chat/ChatInput';
 import { OnboardingOptions } from './onboarding/OnboardingOptions'; // Import our new component
 import type { UserProfile } from '@/lib/types';
@@ -67,18 +69,34 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
           />
         )}
 
+        {/* Context-aware suggestions: hide during onboarding and when last AI message is a question */}
+        {(() => {
+          const lastAi = [...messages].reverse().find(m => m.sender === 'tufti')
+          const isQuestion = !!lastAi?.text?.trim()?.match(/[?]$/)
+          const items = !isOnboarding && !isQuestion ? buildSuggestions(userProfile) : []
+          if (!items || items.length === 0) return null
+          return (
+            <Suggestions
+              suggestions={items}
+              onSelect={(s) => sendMessage(s.prompt)}
+            />
+          )
+        })()}
+
         {chatError && (
           <div className="px-4 py-2 text-center text-red-500 bg-red-900/30 border-t border-b border-red-800/50 text-sm">
             {chatError}
           </div>
         )}
 
-        <ChatInput 
-          onSendMessage={sendMessage} 
-          // Allow typing during onboarding; only block while sending/generating
-          disabled={isSending || isGenerating}
-          isGenerating={isGenerating}
-        />
+        {!(isOnboarding && currentOnboardingQuestion?.type === 'choice') && (
+          <ChatInput 
+            onSendMessage={sendMessage} 
+            // During onboarding text question we still allow typing; otherwise standard gating
+            disabled={isSending || isGenerating}
+            isGenerating={isGenerating}
+          />
+        )}
         
         <div className="h-2 bg-gradient-to-r from-teal-accent/20 via-teal-accent to-teal-accent/20" />
       </div>

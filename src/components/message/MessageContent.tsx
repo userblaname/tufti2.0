@@ -60,8 +60,8 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
         className={cn(
           "relative rounded-xl",
           // Dark bubble to avoid white flash
-          "bg-white/5 border border-white/10",
-          "pl-2.5 py-2.5 pr-6",
+          "bg-white/7 border border-white/15",
+          "px-4 py-3",
           "flex items-start gap-2",
           "max-w-2xl break-words",
           className
@@ -89,12 +89,15 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
   } else {
     // AI message: Render directly (bubble-less)
     return (
-      <div className={cn(
-        "flex items-start space-x-3",
-        "p-3",
-        className
-      )}>
-        {/* Apply prose styles directly to the content wrapper */}
+      <div
+        className={cn(
+          "relative rounded-xl",
+          "bg-teal-accent/10 border border-teal-accent/25 shadow-[0_0_0_1px_rgba(56,178,172,0.15)]",
+          "px-4 py-3",
+          className
+        )}
+      >
+        <div className="absolute left-0 top-0 h-full w-0.5 bg-teal-accent/60 rounded-l-xl" aria-hidden="true" />
         <div className={cn(
           "flex-1 overflow-hidden",
           "prose prose-invert",
