@@ -8,16 +8,7 @@ export default {
   ],
   theme: {
     extend: {
-      fontSize: {
-        'xs': '0.75rem',    // 12px
-        'sm': '0.8125rem',  // 13px
-        'base': '0.875rem', // 14px
-        'lg': '1rem',       // 16px
-        'xl': '1.125rem',   // 18px
-        '2xl': '1.25rem',   // 20px
-        '3xl': '1.5rem',    // 24px
-        '4xl': '1.875rem'   // 30px
-      },
+      // Use Tailwind defaults for base scale (16px) instead of custom small sizes
       colors: {
         tufti: {
           red: '#B82E27',       // Brightened burgundy for better contrast
@@ -123,10 +114,28 @@ export default {
       typography: (theme) => ({
         DEFAULT: {
           css: {
-            'h1': {
+            fontSize: '1rem',
+            lineHeight: '1.7',
+            p: { marginTop: '0.6rem', marginBottom: '0.6rem' },
+            li: { marginTop: '0.25rem', marginBottom: '0.25rem' },
+            h1: {
               fontFamily: theme('fontFamily.baroque').join(', '),
               fontWeight: '700',
+              fontSize: 'clamp(1.75rem, 2.5vw, 2.25rem)',
+              marginTop: '0.75rem',
+              marginBottom: '0.5rem',
             },
+            h2: {
+              fontSize: 'clamp(1.375rem, 1.8vw, 1.75rem)',
+              marginTop: '0.6rem',
+              marginBottom: '0.4rem',
+            },
+            h3: {
+              fontSize: 'clamp(1.125rem, 1.3vw, 1.375rem)',
+              marginTop: '0.5rem',
+              marginBottom: '0.3rem',
+            },
+            code: { fontSize: '0.95em' },
           },
         },
       }),
