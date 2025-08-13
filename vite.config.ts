@@ -14,6 +14,7 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1000, // en kilooctets (kB)
+    sourcemap: true,
   },
   server: {
     proxy: {
