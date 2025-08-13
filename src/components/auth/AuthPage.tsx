@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { motion, motionValue, useTransform, animate as fmAnimate } from 'framer-motion';
 import { TypeAnimation } from 'react-type-animation';
 import '@fontsource/space-grotesk/index.css';
+import CinemaBackdrop from '@/components/background/CinemaBackdrop'
 import { Button } from '@/components/ui/button'
 
 // Animated Subtle Grid Background Component
@@ -136,9 +137,7 @@ const AuthPage: React.FC = () => {
   return (
     <div className="h-screen w-screen overflow-hidden relative bg-gradient-to-br from-navy-deep via-slate-950 to-tufti-black text-gray-200 flex flex-col items-center justify-center p-4 font-modern">
       {/* Backgrounds */}
-      <AnimatedGridBackground />
-      <PatternCircle className="w-[50vw] h-[50vw] md:w-[40vw] md:h-[40vw] top-[-25%] left-[-15%]" />
-      <PatternCircle className="w-[45vw] h-[45vw] md:w-[35vw] md:h-[35vw] bottom-[-20%] right-[-10%]" />
+      <CinemaBackdrop />
 
       {/* Tufti Dialogue Area - brief and randomized */}
       <div className="relative z-10 mb-6 text-center h-10 md:h-12 max-w-md">
