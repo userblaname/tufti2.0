@@ -16,6 +16,33 @@ This document outlines key visual design decisions for the project.
 ## Color Palette (Primary)
 
 -   **Background:** Deep Navy (`bg-navy-deep` - #1A2A40)
--   **Accent:** Teal (`teal-accent` - #38B2AC)
+-   **Primary interactive accent:** Teal (`teal-accent` - #38B2AC)
+-   **Cinematic accent:** Tufti Crimson (`text-tufti-crimson` - #C7352E) for callouts and section titles only
+-   **Subtle emphasis:** Tufti Gold (`text-tufti-gold` - #D4B494) for `strong`/`b` and highlights
+-   **Error/destructive:** Use red tokens only for errors; never for emphasis
 -   **Text (on Dark):** Light Gray (`text-gray-100`, `text-gray-200`)
 -   **Text (on Light):** Dark Gray/Navy (`text-gray-800`)
+
+## Typography
+
+-   **Base size:** 16px (html), 17px on md+ breakpoints; line-height ~1.7
+-   **Headings:** Tailwind Typography with clamped sizes
+    -   h1: clamp(28–36px) teal
+    -   h2: clamp(22–28px) tufti-crimson
+    -   h3: clamp(18–22px) teal
+-   **Body:** 16–17px; lists match body size; avoid sub-14px except micro labels
+
+## Chat Presentation
+
+-   **AI messages (Tufti):** bubble-less, `prose prose-invert`, teal headings, gold emphasis, crimson for key h2 callouts
+-   **User messages:** dark rounded bubble (`rounded-xl`, `bg-white/7`), small avatar fallback, max width 2xl
+-   **Suggestions:** single row above input, `max-w-3xl`, h-10 rounded-xl chips; hidden during onboarding and when last AI message is a question; context-aware with confidence gate (>=2 heuristics)
+
+## Input Composer
+
+-   **Dock:** sticky bottom sheet `max-w-3xl`, rounded-xl glass; always-visible border; ring on focus
+-   **Buttons:** teal accents; keyboard accessible; clear focus styles
+
+## Icons
+
+-   Use teal-toned custom SVGs where brand-specific (e.g., clipboard). Avoid default red-tinted icons.
