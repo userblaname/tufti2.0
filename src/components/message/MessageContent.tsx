@@ -87,27 +87,21 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
       </div>
     );
   } else {
-    // AI message: Render directly (bubble-less)
+    // AI message: Claude-like, bubble-less presentation
     return (
-      <div
-        className={cn(
-          "relative rounded-xl",
-          "bg-teal-accent/10 border border-teal-accent/25 shadow-[0_0_0_1px_rgba(56,178,172,0.15)]",
-          "px-4 py-3",
-          className
-        )}
-      >
-        <div className="absolute left-0 top-0 h-full w-0.5 bg-teal-accent/60 rounded-l-xl" aria-hidden="true" />
-        <div className={cn(
-          "flex-1 overflow-hidden",
-          "prose prose-invert",
-          "text-gray-200",
-          "prose-p:font-modern prose-p:text-gray-200",
-          "prose-headings:text-teal-accent prose-strong:text-gray-100",
-          "prose-h1:mt-2 prose-h1:mb-3 prose-h2:mt-2 prose-h2:mb-2 prose-h3:mt-2 prose-h3:mb-2",
-          "max-w-none",
-          "break-words"
-        )}>
+      <div className={cn("flex items-start", className)}>
+        <div
+          className={cn(
+            "flex-1 overflow-hidden",
+            "prose prose-invert",
+            "text-gray-200",
+            "prose-p:font-modern prose-p:text-gray-200",
+            "prose-headings:text-teal-accent prose-strong:text-gray-100",
+            "prose-h1:mt-2 prose-h1:mb-3 prose-h2:mt-2 prose-h2:mb-2 prose-h3:mt-2 prose-h3:mb-2",
+            "max-w-none",
+            "break-words"
+          )}
+        >
           {content}
         </div>
       </div>
