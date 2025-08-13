@@ -101,10 +101,12 @@ const ChatInput = memo(({
     >
         <div className={cn(
           "relative max-w-3xl mx-auto flex flex-col gap-2.5 rounded-xl p-3",
-          "transition-all duration-500 ease-in-out",
+          "transition-all duration-300 ease-in-out",
+          // Keep a visible border always; enhance on focus
           isFocused 
-            ? 'bg-navy-deep/80 border-teal-accent/40 shadow-lg'
-            : 'bg-navy-deep/60 backdrop-blur-sm border border-teal-accent/20 shadow-md'
+            ? 'bg-navy-deep/80 border border-teal-accent/50 shadow-lg ring-2 ring-teal-accent/50'
+            : 'bg-navy-deep/60 backdrop-blur-sm border border-teal-accent/20 shadow-md hover:border-teal-accent/30',
+          "focus-within:ring-2 focus-within:ring-teal-accent/50"
         )}>
         <div className="relative">
           <TextareaAutosize
@@ -121,12 +123,12 @@ const ChatInput = memo(({
             disabled={disabled}
             className={cn(
               "w-full flex-1 resize-none overflow-y-auto",
-              "bg-transparent border-transparent focus:border-transparent",
+              "bg-transparent border-transparent",
               "font-modern",
-              "focus-visible:outline-none",
-              "rounded-lg",
+              "focus-visible:outline-none focus:ring-0",
+              "rounded-lg caret-teal-accent",
               isFocused 
-                ? 'text-gray-100 placeholder:text-gray-400' 
+                ? 'text-gray-100 placeholder:text-gray-300' 
                 : 'text-gray-100 placeholder:text-gray-400',
               error && "ring-1 ring-red-500"
             )}
