@@ -5,7 +5,7 @@ import { useChat } from '@/hooks/useChat';
 import Header from './chat/Header';
 import MessageList from './chat/MessageList';
 import Suggestions from './chat/Suggestions'
-import { buildSuggestions } from '@/lib/tufti/suggestions'
+import { buildSuggestions, buildContextualSuggestions } from '@/lib/tufti/suggestions'
 import ChatInput from './chat/ChatInput';
 import { OnboardingOptions } from './onboarding/OnboardingOptions'; // Import our new component
 import type { UserProfile } from '@/lib/types';
@@ -72,8 +72,11 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
         {/* Context-aware suggestions: hide during onboarding and when last AI message is a question */}
         {(() => {
           const lastAi = [...messages].reverse().find(m => m.sender === 'tufti')
+          const lastUser = [...messages].reverse().find(m => m.sender === 'user')
           const isQuestion = !!lastAi?.text?.trim()?.match(/[?]$/)
-          const items = !isOnboarding && !isQuestion ? buildSuggestions(userProfile) : []
+          const base = !isOnboarding && !isQuestion ? buildSuggestions(userProfile) : []
+          const contextual = !isOnboarding && !isQuestion && lastUser?.text ? buildContextualSuggestions(lastUser.text) : []
+          const items = [...contextual, ...base].slice(0, 4)
           if (!items || items.length === 0) return null
           return (
             <Suggestions
