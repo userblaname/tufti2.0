@@ -38,3 +38,10 @@ Adhere strictly to the following when writing code:
 -   Suggestions appear above the input only when: not onboarding, last AI message is not a question, and heuristic confidence >= 2; cap to 4. Provide a toggle to hide/show (persisted).
 -   Input composer should show a clear active focus state (border + ring) and never hide for text questions; hide only for choice steps.
 -   Always prefix the system prompt with a compact profile line when available (e.g., `User name: {name}` from `userProfile.name` or `onboarding_answers.name`).
+
+### Persistence & Conversations
+
+-   Supabase is the source of truth for chat history. Do NOT store messages in localStorage.
+-   Load the latest conversation for the current user on mount; create one if none exists.
+-   If a client-side cache is used, namespace by user id (`tufti_conversation_id:{userId}`) and verify ownership before using it.
+-   On Supabase error 42501 (RLS block) while saving, clear the cached id, create a fresh conversation for the current user, and retry once.
