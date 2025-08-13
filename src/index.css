@@ -29,9 +29,7 @@
     @apply mb-0;
   }
 
-  .prose strong, .prose b {
-    @apply text-red-600 font-semibold;
-  }
+.prose strong, .prose b { @apply text-tufti-gold font-semibold; }
 }
 
 @keyframes filmRoll {

@@ -25,6 +25,8 @@ export default {
           highlight: '#F0D5C4', // Brightened highlight
           ambient: '#3A3A3F',   // Ambient background
         },
+        // Cinematic crimson accent inspired by Tafti artwork
+        'tufti-crimson': '#C7352E',
         'input-bg': '#f0eee5',
         'input-text': '#181528',
         'navy-deep': '#1A2A40', 

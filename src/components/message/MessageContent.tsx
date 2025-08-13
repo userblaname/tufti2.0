@@ -26,7 +26,7 @@ const MessageContent = memo(({ message, className }: MessageContentProps) => {
           <h1 className="mt-2 mb-3 text-2xl font-semibold text-teal-accent" {...props} />
         ),
         h2: ({ node, ...props }) => (
-          <h2 className="mt-2 mb-2 text-xl font-semibold text-teal-accent" {...props} />
+          <h2 className="mt-2 mb-2 text-xl font-semibold text-tufti-crimson" {...props} />
         ),
         h3: ({ node, ...props }) => (
           <h3 className="mt-2 mb-2 text-lg font-semibold text-teal-accent" {...props} />
