@@ -150,9 +150,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsProfileLoading(true)
     setProfileError(null)
 
-    const updateData = { 
+    const updateData: any = { 
       ...profileData, 
-      onboarding_complete: true 
+      onboarding_complete: true,
+      onboarding_answers: _onboardingAnswers ?? {}
     }
 
     try {
