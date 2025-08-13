@@ -14,6 +14,9 @@ export function useChat(userProfile: UserProfile) {
   const { isOnboardingComplete, updateProfileAndCompleteOnboarding, session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingHistory] = useState(!isOnboardingComplete);
+  const [hideSuggestions, setHideSuggestions] = useState<boolean>(() => {
+    try { return localStorage.getItem('hide_suggestions') === '1' } catch { return false }
+  })
 
   // --- Onboarding State ---
   const [isOnboarding, setIsOnboarding] = useState(!isOnboardingComplete);
@@ -168,5 +171,7 @@ export function useChat(userProfile: UserProfile) {
     isOnboarding,
     currentOnboardingQuestion: currentQuestion,
     handleOnboardingAnswer,
+    hideSuggestions,
+    setHideSuggestions,
   };
 }

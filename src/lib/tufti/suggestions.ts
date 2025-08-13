@@ -102,4 +102,19 @@ export function buildContextualSuggestions(lastUserText: string): Suggestion[] {
   return out.slice(0, 4)
 }
 
+export function matchSuggestionHeuristics(lastUserText: string): string[] {
+  const text = (lastUserText || '').trim().toLowerCase()
+  if (!text) return []
+  const matches: string[] = []
+  if (/\bhow\b|\bsteps?\b|\bplan\b/.test(text)) matches.push('steps')
+  if (/\bexample\b|\bcode\b|\bsample\b/.test(text)) matches.push('example')
+  if (/\bcompare\b|\bversus\b|\bvs\b|\boption\b|\bchoose\b/.test(text)) matches.push('compare')
+  if (/\brecommend\b|\bwhich\b\s+is\s+best\b/.test(text)) matches.push('recommend')
+  if (/\bwhy\b|\bproblem\b|\bissue\b|not\s+working/.test(text)) matches.push('troubleshoot')
+  if (/\bchecklist\b|\bsteps\b|\blist\b/.test(text)) matches.push('checklist')
+  if (/\bsummar(y|ise)\b|\boverview\b/.test(text)) matches.push('summarize')
+  if (/\baction\b|\bnext\s+steps\b/.test(text)) matches.push('actions')
+  return matches
+}
+
 

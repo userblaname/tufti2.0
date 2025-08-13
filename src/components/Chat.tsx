@@ -5,7 +5,7 @@ import { useChat } from '@/hooks/useChat';
 import Header from './chat/Header';
 import MessageList from './chat/MessageList';
 import Suggestions from './chat/Suggestions'
-import { buildSuggestions, buildContextualSuggestions } from '@/lib/tufti/suggestions'
+import { buildSuggestions, buildContextualSuggestions, matchSuggestionHeuristics } from '@/lib/tufti/suggestions'
 import ChatInput from './chat/ChatInput';
 import { OnboardingOptions } from './onboarding/OnboardingOptions'; // Import our new component
 import type { UserProfile } from '@/lib/types';
@@ -33,6 +33,8 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
     isOnboarding,
     currentOnboardingQuestion,
     handleOnboardingAnswer,
+    hideSuggestions,
+    setHideSuggestions,
   } = useChat(userProfile);
 
   const { toast, toasts, removeToast } = useToast();
@@ -74,15 +76,25 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
           const lastAi = [...messages].reverse().find(m => m.sender === 'tufti')
           const lastUser = [...messages].reverse().find(m => m.sender === 'user')
           const isQuestion = !!lastAi?.text?.trim()?.match(/[?]$/)
+          // Confidence gate: require at least two heuristics to match last user text
+          const heuristics = lastUser?.text ? matchSuggestionHeuristics(lastUser.text) : []
+          const confident = heuristics.length >= 2
           const base = !isOnboarding && !isQuestion ? buildSuggestions(userProfile) : []
-          const contextual = !isOnboarding && !isQuestion && lastUser?.text ? buildContextualSuggestions(lastUser.text) : []
-          const items = [...contextual, ...base].slice(0, 4)
+          const contextual = !isOnboarding && !isQuestion && confident && lastUser?.text ? buildContextualSuggestions(lastUser.text) : []
+          const items = (!hideSuggestions ? [...contextual, ...base].slice(0, 4) : [])
           if (!items || items.length === 0) return null
           return (
-            <Suggestions
-              suggestions={items}
-              onSelect={(s) => sendMessage(s.prompt)}
-            />
+            <div aria-live="polite" aria-atomic="true">
+              <Suggestions
+                suggestions={items}
+                onSelect={(s) => {
+                  try {
+                    console.log('[metrics] suggestion_click', { key: s.key })
+                  } catch {}
+                  sendMessage(s.prompt)
+                }}
+              />
+            </div>
           )
         })()}
 
@@ -100,6 +112,16 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
             isGenerating={isGenerating}
           />
         )}
+
+        <div className="max-w-3xl mx-auto px-4 pb-2 text-right">
+          <button
+            className="text-xs text-gray-400 hover:text-gray-200 underline"
+            aria-label="Toggle suggestions visibility"
+            onClick={() => setHideSuggestions(!hideSuggestions)}
+          >
+            {hideSuggestions ? 'Show suggestions' : 'Hide suggestions'}
+          </button>
+        </div>
         
         <div className="h-2 bg-gradient-to-r from-teal-accent/20 via-teal-accent to-teal-accent/20" />
       </div>
