@@ -144,12 +144,16 @@ export function useChat(userProfile: UserProfile) {
 
     try {
       // Your existing `getAiResponse` logic
-      const systemPrompt = (userProfile as any).persona_briefing
+      const profileName = userProfile?.name || (userProfile as any)?.onboarding_answers?.name
+      const profileLine = profileName ? `User name: ${profileName}. Address the user by this name when appropriate.\n` : ''
+      const systemPrompt = ((userProfile as any).persona_briefing
         ? `${(userProfile as any).persona_briefing}\n\n---\n\n${TUFTI_SYSTEM_PROMPT}`
-        : TUFTI_SYSTEM_PROMPT;
+        : TUFTI_SYSTEM_PROMPT)
+        
+      const finalSystemPrompt = `${profileLine}${systemPrompt}`
 
       const messagesForApi = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: finalSystemPrompt },
         ...conversationHistory.map(msg => ({
           content: msg.text,
           role: msg.sender === 'user' ? 'user' : 'assistant'

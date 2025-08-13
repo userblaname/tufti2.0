@@ -66,6 +66,8 @@ export const UserProfileSchema = z.object({
   name: z.string().nullable(),
   email: z.string().email().nullable().optional(),
   avatar_url: z.string().url().nullable().optional(),
+  onboarding_answers: z.record(z.string(), z.string()).optional(),
+  onboarding_complete: z.boolean().optional(),
   rtExperience: RTExperienceLevel.nullable().optional(),
   isAdmin: z.boolean().optional(),
   permissions: z.array(z.string()).optional(),
