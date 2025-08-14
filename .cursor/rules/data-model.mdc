@@ -37,8 +37,13 @@ This document outlines the key Supabase tables used in the application.
     -   `id` (uuid, primary key): Unique identifier for the conversation.
     -   `user_id` (uuid): Foreign key referencing `auth.users.id`. Links the conversation to a specific user.
     -   `title` (text, nullable): Optional title for the conversation (e.g., first few words of the first message).
-    -   `created_at` (timestamptz): Timestamp of creation.
+    -   `created_at` (timestamptz): Timestamp of creation (default now()).
+    -   `archived_at` (timestamptz, nullable): When present, the conversation is hidden from active view.
+    -   `deleted_at` (timestamptz, nullable): Optional soft-delete marker (not currently used for logic).
+    -   `title` (text, nullable): Optional title for list views.
+    -   `metadata` (jsonb): Free-form metadata for future features.
 -   **RLS:** Requires policies allowing authenticated users to `INSERT` new conversations for themselves and `SELECT` only their own conversations (`auth.uid() = user_id`).
+    -   Delete policy present: users may `DELETE` their own conversations; messages cascade.
 
 ## `public.messages`
 

@@ -42,6 +42,7 @@ Adhere strictly to the following when writing code:
 ### Persistence & Conversations
 
 -   Supabase is the source of truth for chat history. Do NOT store messages in localStorage.
--   Load the latest conversation for the current user on mount; create one if none exists.
+-   Load the latest active conversation (where `archived_at` and `deleted_at` are null) for the current user on mount; create one if none exists.
 -   If a client-side cache is used, namespace by user id (`tufti_conversation_id:{userId}`) and verify ownership before using it.
--   On Supabase error 42501 (RLS block) while saving, clear the cached id, create a fresh conversation for the current user, and retry once.
+-   On Supabase error 42501 (RLS block) while saving, resolve a fresh conversation id from Supabase and retry once (no long-lived cache required).
+-   Clear action should archive the conversation (set `archived_at=now()`) and immediately start a new one, not hard-delete by default. Provide a separate **Delete forever** for true purge.
