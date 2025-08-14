@@ -17,6 +17,23 @@ export async function getLatestConversation(userId: string): Promise<string | nu
   return data?.[0]?.id ?? null
 }
 
+export async function getLatestActiveConversation(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('user_id', userId)
+    .is('archived_at', null)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    console.error('getLatestActiveConversation error', error)
+    return null
+  }
+  return data?.[0]?.id ?? null
+}
+
 export async function createConversation(userId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('conversations')
@@ -32,7 +49,7 @@ export async function createConversation(userId: string): Promise<string | null>
 }
 
 export async function getOrCreateConversation(userId: string): Promise<string | null> {
-  const existing = await getLatestConversation(userId)
+  const existing = await getLatestActiveConversation(userId)
   const id = existing ?? (await createConversation(userId))
   return id
 }
@@ -70,6 +87,26 @@ export async function fetchMessages(conversationId: string): Promise<DbMessageRo
     return []
   }
   return (data as DbMessageRow[]) ?? []
+}
+
+export async function archiveConversation(conversationId: string, userId: string) {
+  const { error } = await supabase
+    .from('conversations')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', conversationId)
+    .eq('user_id', userId)
+  if (error) console.error('archiveConversation error', error)
+  return { ok: !error, error }
+}
+
+export async function deleteConversation(conversationId: string, userId: string) {
+  const { error } = await supabase
+    .from('conversations')
+    .delete()
+    .eq('id', conversationId)
+    .eq('user_id', userId)
+  if (error) console.error('deleteConversation error', error)
+  return { ok: !error, error }
 }
 
 

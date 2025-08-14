@@ -6,7 +6,7 @@ import { getAiResponse } from '@/lib/chat-service';
 import type { Message, UserProfile } from '@/lib/types';
 import { onboardingScript, OnboardingQuestion } from '@/lib/onboardingQuestions';
 import { TUFTI_SYSTEM_PROMPT } from '@/lib/tufti';
-import { getOrCreateConversation, saveMessage, fetchMessages } from '@/lib/supabase/conversations'
+import { getOrCreateConversation, saveMessage, fetchMessages, archiveConversation } from '@/lib/supabase/conversations'
 
 // A simple local ID generator for messages created on the client
 const generateUniqueId = () => `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -186,7 +186,19 @@ export function useChat(userProfile: UserProfile) {
   // Dummy functions for retry and feedback to avoid errors
   const retryLastMessage = () => console.log("Retry requested.");
   const updateMessageFeedback = () => console.log("Feedback updated.");
-  const clearChat = () => setMessages([]); // Simple clear for now
+  const clearChat = async () => {
+    try {
+      const uid = session?.user?.id as string
+      if (!uid) return setMessages([])
+      const convId = await getOrCreateConversation(uid)
+      if (convId) await archiveConversation(convId, uid)
+      setMessages([])
+      await getOrCreateConversation(uid) // create fresh if none
+    } catch (e) {
+      console.warn('archive failed; falling back to local clear', e)
+      setMessages([])
+    }
+  }
 
   return {
     messages,
