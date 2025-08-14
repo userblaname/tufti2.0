@@ -6,7 +6,7 @@ import { getAiResponse } from '@/lib/chat-service';
 import type { Message, UserProfile } from '@/lib/types';
 import { onboardingScript, OnboardingQuestion } from '@/lib/onboardingQuestions';
 import { TUFTI_SYSTEM_PROMPT } from '@/lib/tufti';
-import { getOrCreateConversation, saveMessage, fetchMessages, clearCachedConversationId } from '@/lib/supabase/conversations'
+import { getOrCreateConversation, saveMessage, fetchMessages } from '@/lib/supabase/conversations'
 
 // A simple local ID generator for messages created on the client
 const generateUniqueId = () => `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -136,13 +136,7 @@ export function useChat(userProfile: UserProfile) {
       const uid = session?.user?.id as string
       const conversationId = await getOrCreateConversation(uid)
       if (conversationId && uid) {
-        const res = await saveMessage({ conversationId, userId: uid, role: 'user', text })
-        if (res?.error?.code === '42501') {
-          // RLS block, likely stale cached conversation id. Clear and retry once.
-          clearCachedConversationId(uid)
-          const cid2 = await getOrCreateConversation(uid)
-          if (cid2) await saveMessage({ conversationId: cid2, userId: uid, role: 'user', text })
-        }
+        await saveMessage({ conversationId, userId: uid, role: 'user', text })
       }
     } catch (e) { console.warn('save user message failed', e) }
 
@@ -175,12 +169,7 @@ export function useChat(userProfile: UserProfile) {
         const uid = session?.user?.id as string
         const conversationId = await getOrCreateConversation(uid)
         if (conversationId && uid) {
-          const res = await saveMessage({ conversationId, userId: uid, role: 'tufti', text: aiReply })
-          if (res?.error?.code === '42501') {
-            clearCachedConversationId(uid)
-            const cid2 = await getOrCreateConversation(uid)
-            if (cid2) await saveMessage({ conversationId: cid2, userId: uid, role: 'tufti', text: aiReply })
-          }
+          await saveMessage({ conversationId, userId: uid, role: 'tufti', text: aiReply })
         }
       } catch (e) { console.warn('save ai message failed', e) }
 
