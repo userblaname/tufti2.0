@@ -68,6 +68,7 @@ export const UserProfileSchema = z.object({
   avatar_url: z.string().url().nullable().optional(),
   onboarding_answers: z.record(z.string(), z.string()).optional(),
   onboarding_complete: z.boolean().optional(),
+  persona_briefing: z.string().optional(), // Generated analysis of the user's archetype
   rtExperience: RTExperienceLevel.nullable().optional(),
   isAdmin: z.boolean().optional(),
   permissions: z.array(z.string()).optional(),
@@ -98,6 +99,19 @@ export const MessageSchema = z.object({
     reported: z.boolean().optional(),
     comment: z.string().optional()
   }).optional(),
+  thoughts: z.string().optional(), // Persisted thinking process
+  agentThoughts: z.array(z.object({
+    agentName: z.string(),
+    agentEmoji: z.string(),
+    phase: z.number(),
+    thinking: z.string(),
+    summary: z.string().optional(),
+    isComplete: z.boolean()
+  })).optional(), // Multi-agent thinking chain
+  images: z.array(z.object({
+    data: z.string(), // base64 encoded
+    mediaType: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp"])
+  })).optional(), // Support for image uploads
   metadata: z.object({
     relevanceScore: z.number().optional(),
     sourceConfidence: z.number().optional(),

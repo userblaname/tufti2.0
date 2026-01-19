@@ -5,55 +5,138 @@
 @tailwind utilities;
 
 @layer base {
-  html { font-size: 16px; }
-  @media (min-width: 768px){ html { font-size: 17px; } }
-  
+
+  /* Elegant Serif for Headers */
+  .font-serif-display {
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  }
+
+  /* Shadcn/UI CSS Variables - Teal/Navy Dark Theme */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 174 63% 45%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 174 63% 45%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    /* Zinc 950 #09090b - almost black matte */
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    /* Same as background for seamless blend */
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 19 86% 59%;
+    /* Claude-like Orange #D97757 converted approx (HSL) */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 6% 10%;
+    /* Zinc 900 #18181b - slightly lighter for inputs */
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 6% 10%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 6% 10%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 6% 10%;
+    --input: 240 6% 10%;
+    --ring: 240 5% 64.9%;
+  }
+
+  html {
+    font-size: 16px;
+  }
+
+  @media (min-width: 768px) {
+    html {
+      font-size: 17px;
+    }
+  }
+
   body {
-    @apply bg-gray-50 text-gray-800;
+    @apply bg-background text-foreground;
     min-height: 100vh;
   }
-  
+
   /* Use Tailwind typography defaults; avoid hard-coding small sizes */
 
-  .prose h1, .prose h2, .prose h3 {
+  .prose h1,
+  .prose h2,
+  .prose h3 {
     @apply font-baroque font-semibold;
   }
 
   /* Minimal adjustments; sizes handled by typography config */
-  .prose ul, .prose ol { @apply pl-5; }
-  .prose li { @apply my-0.5; }
-  .prose > :first-child {
+  .prose ul,
+  .prose ol {
+    @apply pl-5;
+  }
+
+  .prose li {
+    @apply my-0.5;
+  }
+
+  .prose> :first-child {
     @apply mt-0;
   }
-  .prose > :last-child {
+
+  .prose> :last-child {
     @apply mb-0;
   }
 
-.prose strong, .prose b { @apply text-tufti-gold font-semibold; }
+  .prose strong,
+  .prose b {
+    @apply text-tufti-gold font-semibold;
+  }
 }
 
 @keyframes filmRoll {
   0% {
     background-position: 0 0;
   }
+
   100% {
     background-position: 200px 200px;
   }
 }
 
 @keyframes fadeInOut {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 0.03;
   }
+
   50% {
     opacity: 0.05;
   }
 }
 
 @keyframes baroqueFloat {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0) rotate(0);
   }
+
   50% {
     transform: translateY(-5px) rotate(0.5deg);
   }
@@ -85,11 +168,9 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to bottom,
-    theme('colors.tufti.black/80'),
-    theme('colors.tufti.surface/60')
-  );
+  background: linear-gradient(to bottom,
+      theme('colors.tufti.black/80'),
+      theme('colors.tufti.surface/60'));
   backdrop-filter: blur(4px);
   border-radius: inherit;
   z-index: -1;
@@ -118,4 +199,218 @@ body {
 
 .scroll-smooth {
   scroll-behavior: smooth;
+}
+
+/* ============================================
+   FUTURISTIC UI UTILITIES - 2025 Design System
+   ============================================ */
+
+/* Glass Morphism */
+.glass {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10;
+}
+
+.glass-dark {
+  @apply bg-black/30 backdrop-blur-xl border border-white/5;
+}
+
+.glass-card {
+  @apply bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 shadow-inner-glow;
+}
+
+/* Glow Effects */
+.glow-teal {
+  box-shadow: 0 0 30px rgba(56, 178, 172, 0.3), inset 0 0 30px rgba(56, 178, 172, 0.05);
+}
+
+.glow-purple {
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.3), inset 0 0 30px rgba(139, 92, 246, 0.05);
+}
+
+.glow-hover:hover {
+  box-shadow: 0 0 40px rgba(56, 178, 172, 0.4);
+  transition: box-shadow 0.3s ease;
+}
+
+/* Shimmer Loading Effect */
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Gradient Text */
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-teal-accent via-neon-cyan to-cyber-purple;
+}
+
+.text-gradient-gold {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500;
+}
+
+/* Animated Border */
+.border-gradient {
+  position: relative;
+  border: none;
+}
+
+.border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(56, 178, 172, 0.5), rgba(139, 92, 246, 0.3), rgba(34, 211, 238, 0.5));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Floating Particles Background */
+.particles-bg {
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(56, 178, 172, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(34, 211, 238, 0.05) 0%, transparent 40%);
+}
+
+/* Premium Button Styles */
+.btn-premium {
+  @apply relative overflow-hidden px-6 py-3 rounded-xl font-medium transition-all duration-300;
+  @apply bg-gradient-to-r from-teal-accent/20 to-cyber-purple/20;
+  @apply border border-teal-accent/30 hover:border-teal-accent/50;
+  @apply hover:shadow-glow-teal hover:scale-[1.02];
+}
+
+.btn-premium::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-teal-accent/0 via-white/10 to-teal-accent/0;
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
+}
+
+.btn-premium:hover::before {
+  transform: translateX(100%);
+}
+
+/* Onboarding Card Style */
+.onboarding-card {
+  @apply relative p-8 md:p-12 rounded-2xl;
+  @apply bg-gradient-to-br from-navy-deep/90 via-slate-900/80 to-navy-deep/90;
+  @apply border border-teal-accent/20 backdrop-blur-xl;
+  @apply shadow-2xl shadow-black/50;
+}
+
+/* Progress Dots */
+.progress-dot {
+  @apply w-2 h-2 rounded-full transition-all duration-300;
+}
+
+.progress-dot.active {
+  @apply w-8 bg-teal-accent;
+}
+
+.progress-dot.completed {
+  @apply bg-teal-accent/80;
+}
+
+.progress-dot.pending {
+  @apply bg-gray-600;
+}
+
+/* Focus Rings */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-teal-accent/50 focus:ring-offset-2 focus:ring-offset-navy-deep;
+}
+
+/* Micro Interactions */
+.hover-lift {
+  @apply transition-transform duration-200 hover:-translate-y-1;
+}
+
+.hover-scale {
+  @apply transition-transform duration-200 hover:scale-105;
+}
+
+.active-shrink:active {
+  @apply scale-95;
+}
+
+/* Typing Cursor */
+
+/* Futuristic Scanlines - Append to end */
+.scanlines-overlay {
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, 0) 50%,
+      rgba(0, 0, 0, 0.1) 50%,
+      rgba(0, 0, 0, 0.1));
+  background-size: 100% 4px;
+  animation: scanlineMove 0.4s linear infinite;
+}
+
+@keyframes scanlineMove {
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(4px);
+  }
+}
+
+.text-neon-glow {
+  text-shadow: 0 0 5px rgba(56, 178, 172, 0.5), 0 0 10px rgba(56, 178, 172, 0.3);
+}
+
+
+/* Ethereal Breathing Animation */
+@keyframes ethereal-breathe {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.animate-ethereal-breathe {
+  animation: ethereal-breathe 4s ease-in-out infinite;
+}
+
+/* ============================================
+   SHINY BUTTON - Animated Gradient Border
+   ============================================ */
+
+@property --gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes gradient-spin {
+  0% {
+    --gradient-angle: 0deg;
+  }
+
+  100% {
+    --gradient-angle: 360deg;
+  }
+}
+
+.shiny-button-wrapper {
+  --gradient-angle: 0deg;
+  animation: gradient-spin 2.5s linear infinite;
+}
+
+/* Applies spinning gradient to any element with this class */
+[style*="--gradient-angle"] {
+  animation: gradient-spin 2.5s linear infinite;
 }

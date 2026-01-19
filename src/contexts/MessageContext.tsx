@@ -5,13 +5,17 @@ interface MessageContextValue {
   updateMessageFeedback: (messageId: string, feedback: Message['feedback']) => void
   retryMessage: (messageId: string) => void
   copyMessage: (text: string) => Promise<void>
+  // TTS methods
+  toggleSpeak: (text: string, messageId: string) => void
+  isSpeakingMessage: (messageId: string) => boolean
+  currentSpeakingMessageId: string | null
 }
 
 const MessageContext = createContext<MessageContextValue | undefined>(undefined)
 
-export function MessageProvider({ children, value }: { 
+export function MessageProvider({ children, value }: {
   children: ReactNode
-  value: MessageContextValue 
+  value: MessageContextValue
 }) {
   return (
     <MessageContext.Provider value={value}>

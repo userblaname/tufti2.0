@@ -4,8 +4,8 @@
 
 [functions]
   directory = "netlify/functions"
-  # This ensures that express and its dependencies are bundled with the function
-  external_node_modules = ["express", "openai"]
+  # Bundle dependencies with the function
+  external_node_modules = ["@pinecone-database/pinecone"]
   node_bundler = "esbuild"
 
 [[redirects]]

@@ -1,28 +1,51 @@
 import React from 'react';
 import Chat from './components/Chat';
+import OnboardingForm from './components/onboarding/OnboardingForm';
 import { useAuth } from './contexts/AuthContext';
 // import SignInButton from './components/auth/SignInButton'; // Old button removed
 import AuthPage from './components/auth/AuthPage'; // Import the new AuthPage
 import type { UserProfile } from '@/lib/types';
 
+// ========== DEV MODE: BYPASS AUTH ==========
+const DEV_BYPASS_AUTH = false; // Set to false to restore normal auth flow
+
+// Mock user profile for development
+const DEV_USER_PROFILE: UserProfile = {
+  id: '79ace784-839b-4c48-99ec-d1e71a94136e',
+  name: 'Dev User',
+  email: 'dev@localhost',
+  avatar_url: null,
+  onboarding_complete: true,
+  booksRead: [],
+  focusDetails: '',
+  intentDetails: '',
+  preferences: { theme: 'dark', notifications: true },
+};
+// ============================================
+
 // Loading Screen Component
 const LoadingScreen: React.FC = () => (
   <div className="flex items-center justify-center h-screen w-screen bg-navy-deep">
-    <p className="text-gray-300 animate-pulse">Loading Your Reality...</p> 
+    <p className="text-gray-300 animate-pulse">Loading Your Reality...</p>
   </div>
 );
 
 function App() {
-  const { 
-    user, 
-    isLoading, 
-    userProfile, 
-    isProfileLoading, 
-    isOnboardingComplete, 
-    signOut, 
-    authError, // Get authError to potentially display on fallback
-    profileError // Get profileError to potentially display on fallback
+  const {
+    user,
+    isLoading,
+    userProfile,
+    isProfileLoading,
+    isOnboardingComplete,
+    signOut,
+    authError,
+    profileError
   } = useAuth();
+
+  // DEV MODE: Skip all auth, go straight to Chat
+  if (DEV_BYPASS_AUTH) {
+    return <Chat userProfile={DEV_USER_PROFILE} signOut={async () => console.log('Dev signOut called')} />;
+  }
 
   // Combined loading state: True if initial auth OR profile fetch is happening for a logged-in user
   const combinedIsLoading = isLoading || (user != null && isProfileLoading);
@@ -38,14 +61,19 @@ function App() {
     return <AuthPage />;
   }
 
-  // Logged-in user: always go to Chat; conversational onboarding handles the rest
+  // Handle Onboarding state explicitly
+  if (isOnboardingComplete === false) {
+    return <OnboardingForm userProfile={userProfile} />;
+  }
+
+  // Logged-in user and onboarding complete: always go to Chat
   if (userProfile) {
     return (
       <>
-        <Chat userProfile={userProfile} signOut={signOut} /> 
+        <Chat userProfile={userProfile} signOut={signOut} />
       </>
     );
-  } 
+  }
 
   // Fallback case: User exists, onboarding *should* be complete, but profile is missing.
   // Display errors if available.

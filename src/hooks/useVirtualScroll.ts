@@ -13,20 +13,10 @@ export function useVirtualScroll(messages: Message[], rowHeight = 100) {
     overscan: 5,
   })
 
-  const scrollToBottom = useCallback(() => {
-    if (scrollingRef.current) {
-      scrollingRef.current.scrollTo({
-        top: scrollingRef.current.scrollHeight,
-        behavior: 'smooth'
-      })
-    }
-  }, [])
-
   return {
     parentRef,
     scrollingRef,
     virtualRows: rowVirtualizer.getVirtualItems(),
     totalSize: rowVirtualizer.getTotalSize(),
-    scrollToBottom
   }
 }

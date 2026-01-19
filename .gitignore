@@ -1,30 +1,39 @@
+# Dependencies
+node_modules/
+.netlify/
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.production
+backend/.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
 # Logs
-logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Netlify
+.netlify/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Artifacts (internal)
+/.gemini/
 
-# Environment variables
-.env
-.env.*
-!.env.example
-api/.env # Ignore API-specific env file
+# Data files (too large for git)
+data/books/*.txt
+data/courses/**/*.txt
+
+# Memories (user data)
+memories/
+backend/memories/

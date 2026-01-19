@@ -1,16 +1,15 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
-import '@fontsource/space-grotesk/400.css'
-import '@fontsource/space-grotesk/500.css'
-import '@fontsource/space-grotesk/600.css'
 import { AuthProvider } from './contexts/AuthContext.tsx'
+import { createQueryClient, QueryClientProvider } from '@/hooks/useMessagePagination'
 import './index.css'
 
+const queryClient = createQueryClient()
+
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+  <QueryClientProvider client={queryClient}>
     <AuthProvider>
-    <App />
+      <App />
     </AuthProvider>
-  </StrictMode>,
+  </QueryClientProvider>,
 )

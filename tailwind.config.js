@@ -29,13 +29,20 @@ export default {
         'tufti-crimson': '#C7352E',
         'input-bg': '#f0eee5',
         'input-text': '#181528',
-        'navy-deep': '#1A2A40', 
+        'navy-deep': '#1A2A40',
         'teal-accent': '#38B2AC', // Teal-500
         'tufti-black': '#100804',
         'tufti-red': '#E53E3E', // Example Red
         'tufti-gold': '#D69E2E', // Example Gold
         'tufti-white': '#F7FAFC', // Example Off-white
         'tufti-surface': '#1A202C', // Example Surface Dark Gray
+        // New futuristic colors
+        'cyber-purple': '#8B5CF6',
+        'cyber-purple-dark': '#6D28D9',
+        'neon-cyan': '#22D3EE',
+        'neon-pink': '#EC4899',
+        'glass-white': 'rgba(255, 255, 255, 0.05)',
+        'glass-border': 'rgba(255, 255, 255, 0.1)',
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -80,9 +87,15 @@ export default {
       },
       backgroundImage: {
         'baroque-pattern': "url('data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 0c27.614 0 50 22.386 50 50s-22.386 50-50 50S0 77.614 0 50 22.386 0 50 0zm0 10c-22.091 0-40 17.909-40 40s17.909 40 40 40 40-17.909 40-40-17.909-40-40-40zm0 10c16.569 0 30 13.431 30 30 0 16.569-13.431 30-30 30-16.569 0-30-13.431-30-30 0-16.569 13.431-30 30-30z' fill='%23FFFFFF' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E')",
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
       },
       boxShadow: {
         'baroque': '0 1px 3px rgba(0, 0, 0, 0.2)',
+        'glow-teal': '0 0 20px rgba(56, 178, 172, 0.3)',
+        'glow-purple': '0 0 20px rgba(139, 92, 246, 0.3)',
+        'glow-cyan': '0 0 20px rgba(34, 211, 238, 0.3)',
+        'inner-glow': 'inset 0 0 20px rgba(255, 255, 255, 0.05)',
       },
       animation: {
         'baroque-float': 'baroqueFloat 6s ease-in-out infinite',
@@ -90,6 +103,16 @@ export default {
         'fade-in-out': 'fadeInOut 8s ease-in-out infinite',
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        // New futuristic animations
+        'glow-pulse': 'glowPulse 2s ease-in-out infinite',
+        'float': 'float 6s ease-in-out infinite',
+        'shimmer': 'shimmer 2s linear infinite',
+        'fade-in-up': 'fadeInUp 0.5s ease-out',
+        'fade-in-scale': 'fadeInScale 0.4s ease-out',
+        'slide-in-right': 'slideInRight 0.3s ease-out',
+        'pulse-slow': 'pulse 3s ease-in-out infinite',
+        'spin-slow': 'spin 8s linear infinite',
+        'gradient-shift': 'gradientShift 8s ease infinite',
       },
       keyframes: {
         baroqueFloat: {
@@ -111,6 +134,35 @@ export default {
         'accordion-up': {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: 0 },
+        },
+        // New futuristic keyframes
+        glowPulse: {
+          '0%, 100%': { boxShadow: '0 0 20px rgba(56, 178, 172, 0.2)' },
+          '50%': { boxShadow: '0 0 40px rgba(56, 178, 172, 0.4)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+        fadeInUp: {
+          '0%': { opacity: 0, transform: 'translateY(20px)' },
+          '100%': { opacity: 1, transform: 'translateY(0)' },
+        },
+        fadeInScale: {
+          '0%': { opacity: 0, transform: 'scale(0.95)' },
+          '100%': { opacity: 1, transform: 'scale(1)' },
+        },
+        slideInRight: {
+          '0%': { opacity: 0, transform: 'translateX(-20px)' },
+          '100%': { opacity: 1, transform: 'translateX(0)' },
+        },
+        gradientShift: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
         },
       },
       typography: (theme) => ({

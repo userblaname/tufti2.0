@@ -1,140 +1,157 @@
 // src/components/Chat.tsx
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useChat } from '@/hooks/useChat';
-import Header from './chat/Header';
+import Sidebar from './chat/Sidebar';
+import ChatTopBar from './chat/ChatTopBar';
 import MessageList from './chat/MessageList';
-import Suggestions from './chat/Suggestions'
-import { buildSuggestions, buildContextualSuggestions, matchSuggestionHeuristics } from '@/lib/tufti/suggestions'
 import ChatInput from './chat/ChatInput';
-import { OnboardingOptions } from './onboarding/OnboardingOptions'; // Import our new component
+import { OnboardingOptions } from './onboarding/OnboardingOptions';
+import CommandPalette from './command-palette/CommandPalette';
 import type { UserProfile } from '@/lib/types';
 import { useToast } from '@/components/ui/use-toast';
 import { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastAction } from '@/components/ui/toast';
 
 interface ChatProps {
-  userProfile: UserProfile
-  signOut: () => Promise<void>
+  userProfile: UserProfile;
+  signOut: () => Promise<void>;
 }
 
 export default function Chat({ userProfile, signOut }: ChatProps) {
-  const { 
-    messages, 
-    isTyping, 
-    isGenerating, 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const {
+    messages,
+    isTyping,
+    isGenerating,
     isSending,
-    sendMessage, 
-    updateMessageFeedback, 
+    sendMessage,
+    editMessage,
+    updateMessageFeedback,
     retryLastMessage,
     clearChat,
     chatError,
     isLoadingHistory,
-    // Get the new state from our hook
     isOnboarding,
     currentOnboardingQuestion,
     handleOnboardingAnswer,
-    hideSuggestions,
-    setHideSuggestions,
+    isThinkingEnabled,
+    toggleThinkingMode,
+    isDeepResearchEnabled,
+    toggleDeepResearch,
+    cancelGeneration,
+    isThinking,
+    isDeepExperimentEnabled,
+    toggleDeepExperiment,
+    // Pagination
+    loadMoreMessages,
+    hasMoreMessages,
+    isLoadingMore,
   } = useChat(userProfile);
 
   const { toast, toasts, removeToast } = useToast();
 
+  const handleNavigateToMessage = (messageId: string) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Flash effect to highlight
+      element.animate(
+        [
+          { backgroundColor: 'rgba(56, 178, 172, 0.1)' },
+          { backgroundColor: 'transparent' }
+        ],
+        { duration: 2000, easing: 'ease-out' }
+      );
+    }
+  };
+
   return (
     <ToastProvider>
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5, ease: "easeInOut" }}
-      className="flex flex-col h-screen bg-navy-deep relative"
-    >
-      <div className="relative z-10 flex flex-col h-full">
-        <div className="h-2 bg-gradient-to-r from-teal-accent/20 via-teal-accent to-teal-accent/20" />
-        
-        <Header 
-          onClearChat={clearChat} 
-          userName={userProfile.name} 
-          signOut={signOut}
-        />
-        
-        <MessageList
+      <div className="flex h-screen bg-zinc-950 relative overflow-hidden">
+        <CommandPalette
           messages={messages}
-          isTyping={isTyping || isGenerating} // Show typing indicator during generation
-          onRetry={retryLastMessage}
-          onFeedback={updateMessageFeedback}
+          onNavigateToMessage={handleNavigateToMessage}
+        />
+        {/* Sidebar - left panel */}
+        <Sidebar
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          onClearChat={clearChat}
+          onFillInput={sendMessage}
+          signOut={signOut}
+          userName={userProfile.name || 'User'}
+          messageCount={messages.length}
         />
 
-        {/* Conditionally render onboarding options */}
-        {isOnboarding && currentOnboardingQuestion?.type === 'choice' && (
-          <OnboardingOptions 
-            question={currentOnboardingQuestion}
-            onAnswer={handleOnboardingAnswer}
-          />
-        )}
+        {/* Main Chat Area */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, ease: 'easeInOut' }}
+          className="flex flex-col flex-1 relative"
+        >
+          <div className="relative z-10 flex flex-col h-full">
 
-        {/* Context-aware suggestions: hide during onboarding and when last AI message is a question */}
-        {(() => {
-          const lastAi = [...messages].reverse().find(m => m.sender === 'tufti')
-          const lastUser = [...messages].reverse().find(m => m.sender === 'user')
-          const isQuestion = !!lastAi?.text?.trim()?.match(/[?]$/)
-          // Confidence gate: require at least two heuristics to match last user text
-          const heuristics = lastUser?.text ? matchSuggestionHeuristics(lastUser.text) : []
-          const confident = heuristics.length >= 2
-          const base = !isOnboarding && !isQuestion ? buildSuggestions(userProfile) : []
-          const contextual = !isOnboarding && !isQuestion && confident && lastUser?.text ? buildContextualSuggestions(lastUser.text) : []
-          const items = (!hideSuggestions ? [...contextual, ...base].slice(0, 4) : [])
-          if (!items || items.length === 0) return null
-          return (
-            <div aria-live="polite" aria-atomic="true">
-              <Suggestions
-                suggestions={items}
-                onSelect={(s) => {
-                  try {
-                    console.log('[metrics] suggestion_click', { key: s.key })
-                  } catch {}
-                  sendMessage(s.prompt)
-                }}
+            <ChatTopBar
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            />
+
+            <MessageList
+              messages={messages}
+              isTyping={isTyping || isGenerating}
+              isThinking={isThinking}
+              onRetry={retryLastMessage}
+              onFeedback={updateMessageFeedback}
+              onEdit={editMessage}
+              onLoadMore={loadMoreMessages}
+              hasMoreMessages={hasMoreMessages}
+              isLoadingMore={isLoadingMore}
+            />
+
+            {/* Conditionally render onboarding options */}
+            {isOnboarding && currentOnboardingQuestion?.type === 'choice' && (
+              <OnboardingOptions
+                question={currentOnboardingQuestion}
+                onAnswer={handleOnboardingAnswer}
               />
-            </div>
-          )
-        })()}
+            )}
 
-        {chatError && (
-          <div className="px-4 py-2 text-center text-red-500 bg-red-900/30 border-t border-b border-red-800/50 text-sm">
-            {chatError}
+
+
+            {chatError && (
+              <div className="px-4 py-2 text-center text-red-500 bg-red-900/30 border-t border-b border-red-800/50 text-sm">
+                {chatError}
+              </div>
+            )}
+
+            {!(isOnboarding && currentOnboardingQuestion?.type === 'choice') && (
+              <ChatInput
+                onSendMessage={sendMessage}
+                disabled={isSending}
+                isGenerating={isGenerating}
+                isThinkingEnabled={isThinkingEnabled}
+                onToggleThinking={toggleThinkingMode}
+                isDeepResearchEnabled={isDeepResearchEnabled}
+                onToggleDeepResearch={toggleDeepResearch}
+                isDeepExperimentEnabled={isDeepExperimentEnabled}
+                onToggleDeepExperiment={toggleDeepExperiment}
+                onCancelGeneration={cancelGeneration}
+              />
+            )}
           </div>
-        )}
 
-        {!(isOnboarding && currentOnboardingQuestion?.type === 'choice') && (
-          <ChatInput 
-            onSendMessage={sendMessage} 
-            // During onboarding text question we still allow typing; otherwise standard gating
-            disabled={isSending || isGenerating}
-            isGenerating={isGenerating}
-          />
-        )}
-
-        <div className="max-w-3xl mx-auto px-4 pb-2 text-right">
-          <button
-            className="text-xs text-gray-400 hover:text-gray-200 underline"
-            aria-label="Toggle suggestions visibility"
-            onClick={() => setHideSuggestions(!hideSuggestions)}
-          >
-            {hideSuggestions ? 'Show suggestions' : 'Hide suggestions'}
-          </button>
-        </div>
-        
-        <div className="h-2 bg-gradient-to-r from-teal-accent/20 via-teal-accent to-teal-accent/20" />
+          {toasts.map((t) => (
+            <Toast key={t.id} onOpenChange={(open) => { if (!open) removeToast(t.id); }}>
+              {t.title && <ToastTitle>{t.title}</ToastTitle>}
+              {t.description && <ToastDescription>{t.description}</ToastDescription>}
+              <ToastAction altText="Retry" onClick={() => retryLastMessage()}>Retry</ToastAction>
+            </Toast>
+          ))}
+          <ToastViewport />
+        </motion.div>
       </div>
-      
-      {toasts.map((t) => (
-        <Toast key={t.id} onOpenChange={(open) => { if (!open) removeToast(t.id) }}>
-          {t.title && <ToastTitle>{t.title}</ToastTitle>}
-          {t.description && <ToastDescription>{t.description}</ToastDescription>}
-          <ToastAction altText="Retry" onClick={() => retryLastMessage()}>Retry</ToastAction>
-        </Toast>
-      ))}
-      <ToastViewport />
-    </motion.div>
     </ToastProvider>
   );
 }

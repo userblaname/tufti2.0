@@ -37,36 +37,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     let initialCheckDone = false;
     setIsLoading(true);
+    console.log('[AuthContext] Initializing...')
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      initialCheckDone = true;
-      setSession(session);
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      setIsLoading(false); // Initial auth check finished here
-      if (!currentUser) {
-        setIsProfileLoading(false); 
+      console.log('[AuthContext] getSession result:', session ? 'Session found' : 'No session', session?.user?.email)
+
+      // Only update if we haven't already received a session from the listener (prevents race condition)
+      if (!initialCheckDone) {
+        // We defer to the listener if it has already fired a SIGNED_IN event, 
+        // but here we just set what we have.
+        // Let's just set it. 
+        setSession(session);
+        setUser(session?.user ?? null);
+        initialCheckDone = true;
+        setIsLoading(false);
+      }
+      // If getSession finds no user and initialCheckDone is still false (meaning listener hasn't fired yet),
+      // we should still ensure profile loading states are reset.
+      if (!session?.user && !initialCheckDone) { // This condition ensures we don't override listener's state
+        setIsProfileLoading(false);
         setIsOnboardingComplete(null);
         setUserProfile(null);
-        }
+      }
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        console.log("Auth State Changed, Event:", _event);
-        const currentUser = session?.user ?? null;
+        console.log("[AuthContext] Auth State Changed:", _event, session ? 'Session active' : 'No session');
+
+        // Always trust the event listener as the source of truth for state changes
         setSession(session);
+        const currentUser = session?.user ?? null; // Define currentUser here
         setUser(currentUser);
-        // Only set isLoading false if initial check is also done (prevents flicker)
-        if (initialCheckDone) {
-           setIsLoading(false);
+
+        if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED' || _event === 'SIGNED_OUT') {
+          // Ensure loading is cleared on definitive events
+          setIsLoading(false);
+          initialCheckDone = true; // effectively complete initial check logic
         }
+
         if (!currentUser) {
-           setIsProfileLoading(false);
-           setIsOnboardingComplete(null);
-           setUserProfile(null);
-           setProfileError(null);
-           setAuthError(null);
-      } else {
+          setIsProfileLoading(false);
+          setIsOnboardingComplete(null);
+          setUserProfile(null);
+          setProfileError(null);
+          setAuthError(null);
+        } else {
           // User is now available or refreshed, profile fetch effect will trigger
         }
       }
@@ -79,60 +95,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     if (!isLoading && user) {
+      // Skip re-fetching if we already have a valid profile for this user
+      // This prevents Chat from unmounting on tab switch (TOKEN_REFRESHED)
+      if (userProfile && userProfile.id === user.id) {
+        console.log('[AuthContext] Skipping profile fetch - already loaded for user:', user.id);
+        return;
+      }
+
       console.log('User ready, fetching profile...', user.id);
       setIsProfileLoading(true);
-      setProfileError(null); 
-      
+      setProfileError(null);
+
       supabase
         .from('users')
         .select('*, onboarding_complete')
         .eq('id', user.id)
         .maybeSingle()
         .then(({ data: existingProfile, error: selectError }) => {
-           if (selectError) {
-              console.error('Error checking for existing profile:', selectError.message);
-              setProfileError("Could not load user profile (select failed).");
-              setIsProfileLoading(false);
-              setIsOnboardingComplete(false);
-              return;
-           }
+          if (selectError) {
+            console.error('Error checking for existing profile:', selectError.message);
+            setProfileError("Could not load user profile (select failed).");
+            setIsProfileLoading(false);
+            setIsOnboardingComplete(false);
+            return;
+          }
 
-           if (existingProfile) {
-             console.log('Existing profile found:', existingProfile);
-             setUserProfile(existingProfile as UserProfile);
-             setIsOnboardingComplete(existingProfile.onboarding_complete || false);
-             setIsProfileLoading(false);
-           } else {
-             console.log('No existing profile, inserting...');
-             supabase
-                .from('users')
-                .insert({ 
-                    id: user.id, 
-                    created_at: new Date().toISOString(),
-                    name: user.user_metadata?.full_name,
-                    email: user.email,
-                    avatar_url: user.user_metadata?.avatar_url,
-                    onboarding_complete: false
-                 })
-                .select('*, onboarding_complete')
-                .single()
-                .then(({data: newProfile, error: insertError}) => {
-                    if(insertError) {
-                        console.error('Error inserting new profile:', insertError.message);
-                        setProfileError("Could not create user profile.");
-                        setIsOnboardingComplete(false);
-                    } else if (newProfile) {
-                        console.log('New profile inserted:', newProfile);
-                        setUserProfile(newProfile as UserProfile);
-                        setIsOnboardingComplete(newProfile.onboarding_complete || false);
-                    } else {
-                        console.warn('No data returned after profile insert.');
-                        setProfileError("Could not load user profile after creation.");
-                        setIsOnboardingComplete(false);
-                    }
-                    setIsProfileLoading(false);
-                });
-           }
+          if (existingProfile) {
+            console.log('Existing profile found:', existingProfile);
+            setUserProfile(existingProfile as UserProfile);
+            setIsOnboardingComplete(existingProfile.onboarding_complete || false);
+            setIsProfileLoading(false);
+          } else {
+            console.log('No existing profile, inserting...');
+            supabase
+              .from('users')
+              .insert({
+                id: user.id,
+                created_at: new Date().toISOString(),
+                name: user.user_metadata?.full_name,
+                email: user.email,
+                avatar_url: user.user_metadata?.avatar_url,
+                onboarding_complete: false
+              })
+              .select('*, onboarding_complete')
+              .single()
+              .then(({ data: newProfile, error: insertError }) => {
+                if (insertError) {
+                  console.error('Error inserting new profile:', insertError.message);
+                  setProfileError("Could not create user profile.");
+                  setIsOnboardingComplete(false);
+                } else if (newProfile) {
+                  console.log('New profile inserted:', newProfile);
+                  setUserProfile(newProfile as UserProfile);
+                  setIsOnboardingComplete(newProfile.onboarding_complete || false);
+                } else {
+                  console.warn('No data returned after profile insert.');
+                  setProfileError("Could not load user profile after creation.");
+                  setIsOnboardingComplete(false);
+                }
+                setIsProfileLoading(false);
+              });
+          }
         });
     } else if (!isLoading && !user) {
       setIsProfileLoading(false);
@@ -150,8 +173,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsProfileLoading(true)
     setProfileError(null)
 
-    const updateData: any = { 
-      ...profileData, 
+    const updateData: any = {
+      ...profileData,
       onboarding_complete: true,
       onboarding_answers: _onboardingAnswers ?? {}
     }
@@ -192,11 +215,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
+          redirectTo: window.location.origin
         }
       })
       if (error) {
-      throw error
-    }
+        throw error
+      }
       console.log("Redirecting to Google...")
     } catch (error: any) {
       console.error('Error during Google Sign In:', error.message)
@@ -212,7 +236,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log("Attempting Sign Out...")
       const { error } = await supabase.auth.signOut()
       if (error) {
-      throw error
+        throw error
       }
       console.log("Sign out successful.")
     } catch (error: any) {

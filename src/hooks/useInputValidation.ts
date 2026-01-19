@@ -8,7 +8,7 @@ interface UseInputValidationProps {
 
 export function useInputValidation({
   minLength = 1,
-  maxLength = 1000,
+  maxLength = 50000, // Large limit for testing
   required = true
 }: UseInputValidationProps = {}) {
   const [error, setError] = useState<string | null>(null)

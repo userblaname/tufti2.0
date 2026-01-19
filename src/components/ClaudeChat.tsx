@@ -1,26 +1,17 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Image, Paperclip, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import Message from './chat/Message'
+import Message from './message/Message'
 import { useChat } from '@/hooks/useChat'
 
 const ClaudeChat = () => {
   const [inputValue, setInputValue] = useState('')
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { messages, isTyping, sendMessage } = useChat()
-
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({
-        top: scrollAreaRef.current.scrollHeight,
-        behavior: 'smooth'
-      })
-    }
-  }, [messages])
+  const { messages, isTyping, sendMessage } = useChat({ id: 'legacy' } as any)
 
   const handleSend = async () => {
     if (inputValue.trim() && !isTyping) {
@@ -81,7 +72,7 @@ const ClaudeChat = () => {
             <Button variant="ghost" size="icon" disabled={isTyping}>
               <Paperclip className="w-5 h-5" />
             </Button>
-            <Button 
+            <Button
               onClick={handleSend}
               disabled={!inputValue.trim() || isTyping}
               variant="ghost"
