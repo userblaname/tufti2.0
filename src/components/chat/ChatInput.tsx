@@ -455,8 +455,8 @@ const ChatInput = memo(({
           className="hidden"
         />
 
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex gap-2 items-center">
+        <div className="flex items-center justify-between pt-2 gap-2">
+          <div className="flex gap-2 items-center overflow-x-auto scrollbar-hide flex-1 min-w-0">
             {/* Plus Button - triggers image/file upload */}
             <Button
               variant="ghost"
@@ -793,8 +793,8 @@ const ChatInput = memo(({
             )}
           </div>
 
-          {/* Right side: Voice + Send buttons */}
-          <div className="flex items-center gap-1">
+          {/* Right side: Voice + Send buttons - always visible */}
+          <div className="flex items-center gap-1 shrink-0">
             {/* Voice Input Button */}
             {isVoiceSupported && (
               <motion.button

@@ -178,6 +178,16 @@
     min-height: 100dvh;
   }
 
+  /* Hide scrollbars but keep scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Use Tailwind typography defaults; avoid hard-coding small sizes */
 
   .prose h1,
