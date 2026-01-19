@@ -584,10 +584,10 @@ const ChatInput = memo(({
                     </motion.div>
                   </div>
 
-                  {/* Text Label with Glow */}
+                  {/* Text Label with Glow - hidden on mobile */}
                   <span
                     className={cn(
-                      "text-[11px] font-bold tracking-[0.12em] z-10 relative uppercase italic",
+                      "hidden sm:inline text-[11px] font-bold tracking-[0.12em] z-10 relative uppercase italic",
                       isThinkingEnabled ? "text-[#4A90E2]" : "text-zinc-500 group-hover:text-zinc-300"
                     )}>
                     Presence
@@ -707,7 +707,7 @@ const ChatInput = memo(({
                     </motion.div>
                   </div>
                   <span className={cn(
-                    "text-[11px] font-bold tracking-[0.12em] z-10 relative uppercase italic",
+                    "hidden sm:inline text-[11px] font-bold tracking-[0.12em] z-10 relative uppercase italic",
                     isDeepResearchEnabled ? "text-amber-400" : "text-zinc-500 group-hover:text-zinc-300"
                   )}>
                     Oracle
@@ -774,7 +774,7 @@ const ChatInput = memo(({
                     </motion.div>
                   </div>
                   <span className={cn(
-                    "text-[11px] font-bold tracking-[0.12em] z-10 relative uppercase italic",
+                    "hidden sm:inline text-[11px] font-bold tracking-[0.12em] z-10 relative uppercase italic",
                     isDeepExperimentEnabled ? "text-violet-400" : "text-zinc-500 group-hover:text-zinc-300"
                   )}>
                     Experiment
