@@ -319,7 +319,7 @@ const ChatInput = memo(({
 
   return (
     <motion.div
-      className={cn("pt-0 pb-4 px-4", className)} /* No top padding */
+      className={cn("pt-0 pb-4 px-4 safe-area-bottom", className)} /* Safe area for iPhone home bar */
       role="form"
     >
       <div className={cn(
