@@ -57,7 +57,7 @@ const Sidebar = memo(({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             className={cn(
-                "flex flex-col h-full shrink-0 overflow-hidden",
+                "hidden md:flex flex-col h-full shrink-0 overflow-hidden",
                 "bg-[#0f0f11] border-r border-white/5"
             )}
         >
