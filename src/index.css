@@ -74,6 +74,108 @@
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
+    min-height: 100dvh;
+    /* Dynamic viewport height for mobile */
+    -webkit-tap-highlight-color: transparent;
+    /* Remove blue tap highlight */
+    -webkit-touch-callout: none;
+    /* Disable callout on long press */
+  }
+
+  /* ============================================
+     MOBILE-FIRST UX OPTIMIZATIONS - Expert 2026
+     ============================================ */
+
+  /* Safe area insets for notched phones (iPhone X+) */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .safe-area-inset {
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+
+  /* Minimum tap target size (44x44px per Apple HIG, 48x48px per Material) */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .touch-target-lg {
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  /* Smooth scrolling with momentum on iOS */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Prevent pull-to-refresh on chat containers */
+  .no-overscroll {
+    overscroll-behavior: none;
+  }
+
+  /* Better text rendering on mobile */
+  .text-render-optimize {
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Mobile-friendly input focus */
+  @media (max-width: 768px) {
+
+    input,
+    textarea,
+    select,
+    button {
+      font-size: 16px !important;
+      /* Prevents iOS zoom on focus */
+    }
+
+    /* Better touch response */
+    button,
+    a,
+    [role="button"] {
+      touch-action: manipulation;
+    }
+
+    /* Reduce motion for performance */
+    @media (prefers-reduced-motion: reduce) {
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  }
+
+  /* Full height on mobile (accounts for browser chrome) */
+  .h-screen-safe {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .min-h-screen-safe {
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 
   /* Use Tailwind typography defaults; avoid hard-coding small sizes */

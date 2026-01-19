@@ -69,7 +69,7 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
 
   return (
     <ToastProvider>
-      <div className="flex h-screen bg-zinc-950 relative overflow-hidden">
+      <div className="flex h-screen-safe bg-zinc-950 relative overflow-hidden safe-area-inset">
         <CommandPalette
           messages={messages}
           onNavigateToMessage={handleNavigateToMessage}
