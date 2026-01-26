@@ -1,5 +1,5 @@
 import { useState, useRef, memo, useEffect, useCallback } from 'react'
-import { Plus, ArrowUp, Mic, History as HistoryIcon, ChevronDown, FileText, X, Sparkles, FlaskConical } from 'lucide-react'
+import { Plus, ArrowUp, Mic, History as HistoryIcon, ChevronDown, FileText, X, Sparkles, FlaskConical, FileIcon, File as FileIconDoc } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useInputValidation } from '@/hooks/useInputValidation'
 import { useHapticFeedback } from '@/hooks/useHapticFeedback'
@@ -9,25 +9,59 @@ import { Button } from '@/components/ui/button'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { useToast } from '@/components/ui/use-toast'
 
+// File size constants
 const LONG_INPUT_THRESHOLD = 500
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024
-const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_DOCUMENT_SIZE = 20 * 1024 * 1024 // 20MB
 
+// Supported types
+const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const SUPPORTED_DOCUMENT_TYPES = [
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+]
+
+// Type definitions
 type MediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+type DocumentType = 'application/pdf' | 'text/plain' | 'text/markdown' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
 type UploadedImage = {
+  id: string
   data: string
   mediaType: MediaType
   preview: string
+  fileName: string
+  type: 'image'
 }
+
+type UploadedDocument = {
+  id: string
+  data: string
+  documentType: DocumentType
+  fileName: string
+  fileSize: number
+  preview: string
+  type: 'document'
+}
+
+type UploadedFile = UploadedImage | UploadedDocument
 
 type ApiImage = {
   data: string
   mediaType: MediaType
 }
 
+type ApiDocument = {
+  data: string
+  documentType: DocumentType
+  fileName: string
+}
+
 interface ChatInputProps {
-  onSendMessage: (message: string, images?: ApiImage[]) => void
+  onSendMessage: (message: string, images?: ApiImage[], documents?: ApiDocument[]) => void
   disabled?: boolean
   isGenerating?: boolean
   className?: string
@@ -63,7 +97,7 @@ const ChatInput = memo(({
 }: ChatInputProps) => {
   const [inputValue, setInputValue] = useState('')
   const [isInputExpanded, setIsInputExpanded] = useState(false)
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { error, validate, clearError } = useInputValidation()
   const { lightTap, success } = useHapticFeedback()
@@ -106,102 +140,173 @@ const ChatInput = memo(({
   const isLongInput = inputValue.length > LONG_INPUT_THRESHOLD
   const shouldShowCollapsed = isLongInput && !isInputExpanded
 
+  // Helper functions
+  const getFileCategory = useCallback((mimeType: string): 'image' | 'document' | null => {
+    if (SUPPORTED_IMAGE_TYPES.includes(mimeType as any)) return 'image'
+    if (SUPPORTED_DOCUMENT_TYPES.includes(mimeType as any)) return 'document'
+    return null
+  }, [])
+
+  const isImageFile = (file: UploadedFile): file is UploadedImage => file.type === 'image'
+  const isDocumentFile = (file: UploadedFile): file is UploadedDocument => file.type === 'document'
+
+  // Read file as base64
+  const readFileAsBase64 = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          const result = reader.result as string
+          const base64 = result.split(',')[1]
+          resolve(base64)
+        } catch (error) {
+          reject(error)
+        }
+      }
+      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`))
+      reader.readAsDataURL(file)
+    })
+  }, [])
+
+  // Extract text preview
+  const extractTextPreview = useCallback(async (file: File): Promise<string> => {
+    try {
+      const text = await file.text()
+      return text.substring(0, 100) + (text.length > 100 ? '...' : '')
+    } catch {
+      return `📝 ${file.name}`
+    }
+  }, [])
+
+  // Process dropped files
   useEffect(() => {
     if (!droppedFiles || droppedFiles.length === 0) return
 
     const processFiles = async () => {
       for (const file of droppedFiles) {
-        if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-          toast({
-            title: "Unsupported File",
-            description: `"${file.name}" is not a supported image type.`,
-            variant: "destructive"
-          })
-          continue
-        }
+        const fileType = getFileCategory(file.type)
+        if (!fileType) continue
 
-        if (file.size > MAX_IMAGE_SIZE) {
-          toast({
-            title: "File Too Large",
-            description: `"${file.name}" exceeds the 5MB limit.`,
-            variant: "destructive"
-          })
-          continue
-        }
+        const maxSize = fileType === 'image' ? MAX_IMAGE_SIZE : MAX_DOCUMENT_SIZE
+        if (file.size > maxSize) continue
 
-        const reader = new FileReader()
-        reader.onload = (event) => {
-          const result = event.target?.result as string
-          if (result) {
-            const base64Data = result.split(',')[1]
-            setUploadedImages(prev => [...prev, {
-              data: base64Data,
-              mediaType: file.type as MediaType,
-              preview: result
-            }])
-          }
+        const fileId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        const base64Data = await readFileAsBase64(file)
+
+        if (fileType === 'image') {
+          const blobUrl = URL.createObjectURL(file)
+          setUploadedFiles(prev => [...prev, {
+            id: fileId,
+            data: base64Data,
+            mediaType: file.type as MediaType,
+            preview: blobUrl,
+            fileName: file.name,
+            type: 'image'
+          }])
+        } else {
+          const preview = await extractTextPreview(file)
+          setUploadedFiles(prev => [...prev, {
+            id: fileId,
+            data: base64Data,
+            documentType: file.type as DocumentType,
+            fileName: file.name,
+            fileSize: file.size,
+            preview,
+            type: 'document'
+          }])
         }
-        reader.readAsDataURL(file)
       }
       onClearDroppedFiles?.()
     }
-
     processFiles()
-  }, [droppedFiles, onClearDroppedFiles, toast])
+  }, [droppedFiles, onClearDroppedFiles, getFileCategory, readFileAsBase64, extractTextPreview])
 
+  // Handle file selection
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (!files) return
+    if (!files || files.length === 0) return
 
-    console.log('📎 Files selected:', files.length)
+    console.log('📎 Processing files:', files.length)
 
     for (const file of Array.from(files)) {
-      if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-        toast({
-          title: "Unsupported File",
-          description: `"${file.name}" is not a supported image type.`,
-          variant: "destructive"
-        })
-        continue
-      }
+      try {
+        const fileType = getFileCategory(file.type)
 
-      if (file.size > MAX_IMAGE_SIZE) {
-        toast({
-          title: "File Too Large",
-          description: `"${file.name}" exceeds the 5MB limit.`,
-          variant: "destructive"
-        })
-        continue
-      }
-
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const result = event.target?.result as string
-        if (result) {
-          const base64Data = result.split(',')[1]
-          // Add to state with full preview
-          setUploadedImages(prev => {
-            const updated = [...prev, {
-              data: base64Data,
-              mediaType: file.type as MediaType,
-              preview: result
-            }]
-            console.log('✅ Image added! Total:', updated.length)
-            return updated
+        if (!fileType) {
+          console.warn('❌ Unsupported type:', file.type)
+          toast({
+            title: "Unsupported File",
+            description: `"${file.name}" is not supported. Use images (JPG, PNG, GIF, WebP), PDF, or text files.`,
+            variant: "destructive"
           })
+          continue
         }
+
+        const maxSize = fileType === 'image' ? MAX_IMAGE_SIZE : MAX_DOCUMENT_SIZE
+        if (file.size > maxSize) {
+          console.warn('❌ File too large:', file.size)
+          toast({
+            title: "File Too Large",
+            description: `"${file.name}" exceeds the ${fileType === 'image' ? '5MB' : '20MB'} limit.`,
+            variant: "destructive"
+          })
+          continue
+        }
+
+        const fileId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+        if (fileType === 'image') {
+          const blobUrl = URL.createObjectURL(file)
+          const base64Data = await readFileAsBase64(file)
+
+          setUploadedFiles(prev => [...prev, {
+            id: fileId,
+            data: base64Data,
+            mediaType: file.type as MediaType,
+            preview: blobUrl,
+            fileName: file.name,
+            type: 'image'
+          }])
+          console.log(`✅ Image loaded: ${file.name}`)
+
+        } else {
+          const base64Data = await readFileAsBase64(file)
+          const preview = await extractTextPreview(file)
+
+          setUploadedFiles(prev => [...prev, {
+            id: fileId,
+            data: base64Data,
+            documentType: file.type as DocumentType,
+            fileName: file.name,
+            fileSize: file.size,
+            preview,
+            type: 'document'
+          }])
+          console.log(`✅ Document loaded: ${file.name}`)
+        }
+
+      } catch (error) {
+        console.error('❌ Error processing file:', file.name, error)
+        toast({
+          title: "Error Processing File",
+          description: `Failed to process "${file.name}".`,
+          variant: "destructive"
+        })
       }
-      reader.onerror = () => {
-        console.error('❌ FileReader error:', file.name)
-      }
-      reader.readAsDataURL(file)
     }
 
     e.target.value = ''
-  }, [toast])
+  }, [getFileCategory, readFileAsBase64, extractTextPreview, toast])
 
-  const removeImage = useCallback((index: number) => {
-    setUploadedImages(prev => prev.filter((_, i) => i !== index))
+  // Remove file
+  const removeFile = useCallback((fileId: string) => {
+    setUploadedFiles(prev => {
+      const removed = prev.find(f => f.id === fileId)
+      if (removed && isImageFile(removed) && removed.preview.startsWith('blob:')) {
+        URL.revokeObjectURL(removed.preview)
+      }
+      return prev.filter(f => f.id !== fileId)
+    })
   }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -210,14 +315,37 @@ const ChatInput = memo(({
 
   const handleSend = async () => {
     const hasText = inputValue.trim().length > 0
-    const hasImages = uploadedImages.length > 0
+    const hasFiles = uploadedFiles.length > 0
 
-    if ((hasText || hasImages) && !disabled && !isGenerating && (hasText ? validate(inputValue) : true)) {
+    if ((hasText || hasFiles) && !disabled && !isGenerating && (hasText ? validate(inputValue) : true)) {
       success()
-      const imagesForApi: ApiImage[] = uploadedImages.map(({ data, mediaType }) => ({ data, mediaType }))
-      onSendMessage(inputValue.trim() || 'What do you see in this image?', imagesForApi.length > 0 ? imagesForApi : undefined)
+
+      const images = uploadedFiles.filter(isImageFile)
+      const documents = uploadedFiles.filter(isDocumentFile)
+
+      const imagesForApi: ApiImage[] = images.map(({ data, mediaType }) => ({ data, mediaType }))
+      const documentsForApi: ApiDocument[] = documents.map(({ data, documentType, fileName }) => ({
+        data,
+        documentType,
+        fileName
+      }))
+
+      console.log('📤 Sending:', imagesForApi.length, 'images,', documentsForApi.length, 'documents')
+
+      onSendMessage(
+        inputValue.trim() || 'What do you see in this?',
+        imagesForApi.length > 0 ? imagesForApi : undefined,
+        documentsForApi.length > 0 ? documentsForApi : undefined
+      )
+
+      uploadedFiles.forEach(file => {
+        if (isImageFile(file) && file.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(file.preview)
+        }
+      })
+
       setInputValue('')
-      setUploadedImages([])
+      setUploadedFiles([])
       try { localStorage.removeItem('chat_draft') } catch { }
       clearError()
       inputRef.current?.focus()
@@ -356,44 +484,63 @@ const ChatInput = memo(({
           />
         </div>
 
-        {/* IMAGE PREVIEWS - NOW ALWAYS VISIBLE */}
+        {/* FILE PREVIEWS - Images + Documents */}
         <AnimatePresence>
-          {uploadedImages.length > 0 && (
+          {uploadedFiles.length > 0 && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.25 }}
               className="pb-3 border-t border-white/10 pt-3"
             >
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-[10px] uppercase tracking-wider text-amber-400/80 font-medium">
-                  📎 {uploadedImages.length} image{uploadedImages.length > 1 ? 's' : ''} attached
+                  📎 {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} attached
                 </span>
               </div>
               <div className="flex flex-wrap gap-3">
-                {uploadedImages.map((img, index) => (
+                {uploadedFiles.map((file, index) => (
                   <motion.div
-                    key={index}
+                    key={file.id}
                     className="relative group"
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: index * 0.1 }}
+                    transition={{ delay: index * 0.08 }}
                   >
-                    <div className="absolute -inset-1 bg-gradient-to-br from-amber-500/30 via-transparent to-teal-500/30 rounded-xl opacity-60" />
-                    <img
-                      src={img.preview}
-                      alt={`Upload ${index + 1}`}
-                      className="relative w-24 h-24 object-cover rounded-lg border-2 border-white/20 shadow-lg"
-                      loading="eager"
-                    />
-                    <button
-                      onClick={() => removeImage(index)}
+                    {isImageFile(file) ? (
+                      // IMAGE PREVIEW
+                      <>
+                        <div className="absolute -inset-1 bg-gradient-to-br from-amber-500/30 via-transparent to-teal-500/30 rounded-xl opacity-60" />
+                        <img
+                          src={file.preview}
+                          alt={file.fileName}
+                          className="relative w-24 h-24 object-cover rounded-lg border-2 border-white/20 shadow-lg"
+                          loading="eager"
+                          decoding="async"
+                        />
+                      </>
+                    ) : (
+                      // DOCUMENT PREVIEW
+                      <div className="relative w-24 h-24 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg border-2 border-white/20 shadow-lg flex flex-col items-center justify-center p-2">
+                        <div className="text-2xl">
+                          {file.documentType === 'application/pdf' ? '📄' : '📝'}
+                        </div>
+                        <div className="text-[8px] text-center text-white/80 truncate w-full">
+                          {file.fileName.split('.')[0].substring(0, 10)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Remove button */}
+                    <motion.button
+                      onClick={() => removeFile(file.id)}
                       className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-colors z-10"
-                      aria-label="Remove image"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
                     >
                       <X className="w-3.5 h-3.5 text-white" />
-                    </button>
+                    </motion.button>
                   </motion.div>
                 ))}
               </div>
@@ -408,7 +555,7 @@ const ChatInput = memo(({
                 type="file"
                 id="file-upload"
                 className="sr-only"
-                accept="image/jpeg,image/png,image/gif,image/webp"
+                accept="image/jpeg,image/png,image/gif,image/webp,.pdf,.txt,.md,.doc,.docx"
                 multiple
                 onChange={handleFileSelect}
                 disabled={disabled}
@@ -419,8 +566,8 @@ const ChatInput = memo(({
                   "flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/5 transition-colors cursor-pointer transition-all active:scale-90",
                   disabled && "opacity-50 cursor-not-allowed pointer-events-none"
                 )}
-                aria-label="Upload image or file"
-                title="Click to upload images"
+                aria-label="Upload files"
+                title="Click to upload images, PDFs, or text files"
               >
                 <Plus className="w-5 h-5" />
               </label>
@@ -611,14 +758,14 @@ const ChatInput = memo(({
 
                   <Button
                     onClick={handleSend}
-                    disabled={!inputValue.trim() && uploadedImages.length === 0 || disabled}
+                    disabled={!inputValue.trim() && uploadedFiles.length === 0 || disabled}
                     size="icon"
                     className={cn(
                       "relative h-10 w-10 rounded-[14px] transition-all duration-300 z-10",
                       "bg-[#D97757] text-white shadow-lg",
                       "hover:bg-[#e88868] hover:scale-105 active:scale-95",
                       "disabled:bg-[#1a1a1e] disabled:text-zinc-700 disabled:shadow-none",
-                      (inputValue.trim() || uploadedImages.length > 0) && !disabled && "shadow-[0_0_20px_rgba(217,119,87,0.4)]"
+                      (inputValue.trim() || uploadedFiles.length > 0) && !disabled && "shadow-[0_0_20px_rgba(217,119,87,0.4)]"
                     )}
                   >
                     <ArrowUp className="w-5 h-5" />
