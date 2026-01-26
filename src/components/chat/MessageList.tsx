@@ -1,4 +1,4 @@
-import React, { memo, useRef, useEffect, Suspense, lazy, useCallback } from 'react'
+import React, { memo, useRef, useEffect, useCallback } from 'react'
 import { useInView } from 'react-intersection-observer'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowDown } from 'lucide-react'
@@ -9,7 +9,8 @@ import { useScrollBotPhysics } from '@/hooks/useScrollBotPhysics'
 import { useTTS } from '@/hooks/useTTS'
 import { cn } from '@/lib/utils'
 import Message from '@/components/message/Message'
-const VirtualMessageList = lazy(() => import('@/components/message/VirtualMessageList'))
+// Direct import instead of lazy to prevent dynamic import failures
+import VirtualMessageList from '@/components/message/VirtualMessageList'
 
 import type { Message as MessageType } from '@/lib/types'
 
@@ -101,21 +102,19 @@ const MessageList = memo(({ messages, isTyping, isThinking, onRetry, onFeedback,
   // @tanstack/react-virtual enables navigation to ANY message
   if (messages.length > 50) {
     return (
-      <Suspense fallback={<div className="flex-1 px-4 md:px-6" />}>
-        <VirtualMessageList
-          messages={messages}
-          isTyping={isTyping}
-          isThinking={isThinking}
-          onRetry={onRetry}
-          onFeedback={onFeedback as any}
-          onEdit={onEdit}
-          onSuggestionClick={onSuggestionClick}
-          className={className}
-          onLoadMore={onLoadMore}
-          hasMoreMessages={hasMoreMessages}
-          isLoadingMore={isLoadingMore}
-        />
-      </Suspense>
+      <VirtualMessageList
+        messages={messages}
+        isTyping={isTyping}
+        isThinking={isThinking}
+        onRetry={onRetry}
+        onFeedback={onFeedback as any}
+        onEdit={onEdit}
+        onSuggestionClick={onSuggestionClick}
+        className={className}
+        onLoadMore={onLoadMore}
+        hasMoreMessages={hasMoreMessages}
+        isLoadingMore={isLoadingMore}
+      />
     )
   }
 

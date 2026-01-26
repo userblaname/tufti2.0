@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import TextareaAutosize from 'react-textarea-autosize'
 import { Button } from '@/components/ui/button'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
+import { useToast } from '@/components/ui/use-toast'
 
 // Constants for long input handling
 const LONG_INPUT_THRESHOLD = 500 // Characters before collapsing
@@ -68,9 +69,9 @@ const ChatInput = memo(({
   const [isInputExpanded, setIsInputExpanded] = useState(false)
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const { error, validate, clearError } = useInputValidation()
   const { lightTap, success } = useHapticFeedback()
+  const { toast } = useToast()
 
   // Voice input
   const {
@@ -124,12 +125,22 @@ const ChatInput = memo(({
         // Validate file type
         if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
           console.warn('Unsupported file type:', file.type)
+          toast({
+            title: "Unsupported File",
+            description: `"${file.name}" is not a supported image type.`,
+            variant: "destructive"
+          })
           continue
         }
 
         // Validate file size
         if (file.size > MAX_IMAGE_SIZE) {
           console.warn('File too large:', file.size)
+          toast({
+            title: "File Too Large",
+            description: `"${file.name}" exceeds the 5MB limit.`,
+            variant: "destructive"
+          })
           continue
         }
 
@@ -167,12 +178,22 @@ const ChatInput = memo(({
       // Validate file type
       if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
         console.warn('Unsupported file type:', file.type)
+        toast({
+          title: "Unsupported File",
+          description: `"${file.name}" is not a supported image type.`,
+          variant: "destructive"
+        })
         continue
       }
 
       // Validate file size
       if (file.size > MAX_IMAGE_SIZE) {
         console.warn('File too large:', file.size)
+        toast({
+          title: "File Too Large",
+          description: `"${file.name}" exceeds the 5MB limit.`,
+          variant: "destructive"
+        })
         continue
       }
 
@@ -195,11 +216,9 @@ const ChatInput = memo(({
       reader.readAsDataURL(file)
     }
 
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }, [])
+    // Clear input value so same file can be selected again
+    e.target.value = ''
+  }, [toast])
 
   // Remove an uploaded image
   const removeImage = useCallback((index: number) => {
@@ -445,29 +464,31 @@ const ChatInput = memo(({
           )}
         </AnimatePresence>
 
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
-          multiple
-          onChange={handleFileSelect}
-          className="hidden"
-        />
 
         <div className="flex items-center justify-between pt-2 gap-2">
           <div className="flex gap-2 items-center overflow-x-auto scrollbar-hide flex-1 min-w-0">
             {/* Plus Button - triggers image/file upload */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
-              aria-label="Upload image or file"
-              disabled={disabled}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Plus className="w-5 h-5" />
-            </Button>
+            <div className="relative">
+              <input
+                type="file"
+                id="file-upload"
+                className="sr-only"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                multiple
+                onChange={handleFileSelect}
+                disabled={disabled}
+              />
+              <label
+                htmlFor="file-upload"
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:text-white hover:bg-white/5 transition-colors cursor-pointer transition-all active:scale-90",
+                  disabled && "opacity-50 cursor-not-allowed pointer-events-none"
+                )}
+                aria-label="Upload image or file"
+              >
+                <Plus className="w-5 h-5" />
+              </label>
+            </div>
             {onToggleThinking && (
               <div
                 className="relative group"

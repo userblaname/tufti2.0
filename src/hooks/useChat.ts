@@ -303,13 +303,19 @@ export function useChat(userProfile: UserProfile) {
     }
 
     // Capture thinking mode state
-    const shouldUseThinking = isThinkingEnabled;
+    // ELITE: Auto-enable thinking when images are attached for deep observation
+    const hasImages = images && images.length > 0;
+    const shouldUseThinking = isThinkingEnabled || hasImages;
+
+    if (hasImages) {
+      console.log('[useChat] 🔮 ELITE IMAGE MODE: Auto-enabling deep observation (thinking)');
+    }
     console.log('[useChat] sendMessage called with thinking mode:', shouldUseThinking);
 
     setIsSending(true);
     setChatError(null);
     setIsGenerating(true);
-    setIsThinking(shouldUseThinking);
+    setIsThinking(!!shouldUseThinking);
 
     const userMessage: Message = {
       id: generateUniqueId(),
@@ -383,11 +389,28 @@ export function useChat(userProfile: UserProfile) {
 
       const messagesForApi = [
         { role: 'system', content: finalSystemPrompt },
-        ...conversationHistory.map(msg => ({
-          content: msg.text,
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          timestamp: msg.timestamp // Include timestamp for temporal awareness
-        }))
+        ...conversationHistory.map(msg => {
+          // Format timestamp for AI visibility
+          const msgTime = msg.timestamp instanceof Date
+            ? msg.timestamp.toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            })
+            : '';
+
+          // Embed timestamp into content so AI can see it
+          const contentWithTime = msgTime
+            ? `[${msgTime}] ${msg.text}`
+            : msg.text;
+
+          return {
+            content: contentWithTime,
+            role: msg.sender === 'user' ? 'user' : 'assistant'
+          };
+        })
       ];
 
       console.log('[useChat] Calling getAiResponse with thinking enabled:', shouldUseThinking);

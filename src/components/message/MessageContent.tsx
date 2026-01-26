@@ -42,9 +42,9 @@ const MessageContent = memo(({ message, className, isThinking, isStreaming }: Me
     });
   };
 
-  // Display full text without truncation
-  let displayText = message.text
-  let extractedThoughts = message.thoughts
+  // Display full text without truncation - ADD NULL FALLBACK
+  let displayText = message.text || ''
+  let extractedThoughts = message.thoughts || ''
 
   // Strip the <suggestions> block from display (it's parsed separately)
   if (displayText && displayText.includes('<suggestions>')) {

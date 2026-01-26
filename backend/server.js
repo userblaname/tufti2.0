@@ -144,7 +144,8 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
       // Extract image blocks for multi-agent chain
       imageBlocks = lastUserMessage.content.filter(b => b.type === 'image');
       if (imageBlocks.length > 0) {
-        console.log(`[IMAGE] Extracted ${imageBlocks.length} image(s) from user message`);
+        console.log(`[🔮 ELITE IMAGE] Extracted ${imageBlocks.length} image(s) - Deep Observation Mode Active`);
+        console.log(`[🔮 ELITE IMAGE] Thinking enabled: ${thinkingEnabled} (auto-enabled for images on frontend)`);
       }
     }
   }
