@@ -9,12 +9,10 @@ import { Button } from '@/components/ui/button'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { useToast } from '@/components/ui/use-toast'
 
-// Constants for long input handling
-const LONG_INPUT_THRESHOLD = 500 // Characters before collapsing
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB max per image
+const LONG_INPUT_THRESHOLD = 500
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-// Image types
 type MediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 
 type UploadedImage = {
@@ -63,8 +61,6 @@ const ChatInput = memo(({
   isDeepExperimentEnabled,
   onToggleDeepExperiment
 }: ChatInputProps) => {
-  console.log("ChatInput rendering. isGenerating:", isGenerating);
-
   const [inputValue, setInputValue] = useState('')
   const [isInputExpanded, setIsInputExpanded] = useState(false)
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
@@ -73,7 +69,6 @@ const ChatInput = memo(({
   const { lightTap, success } = useHapticFeedback()
   const { toast } = useToast()
 
-  // Voice input
   const {
     isListening,
     fullTranscript,
@@ -82,21 +77,18 @@ const ChatInput = memo(({
     clearTranscript
   } = useSpeechRecognition()
 
-  // Auto-fill from suggestion click
   useEffect(() => {
     if (pendingSuggestion && pendingSuggestion.trim()) {
-      setInputValue(pendingSuggestion);
-      setIsInputExpanded(true);
-      inputRef.current?.focus();
-      onClearSuggestion?.();
+      setInputValue(pendingSuggestion)
+      setIsInputExpanded(true)
+      inputRef.current?.focus()
+      onClearSuggestion?.()
     }
-  }, [pendingSuggestion, onClearSuggestion]);
+  }, [pendingSuggestion, onClearSuggestion])
 
-  // Sync voice transcript to input
   useEffect(() => {
     if (fullTranscript) {
       setInputValue(prev => {
-        // If already has content, append with space
         if (prev && !prev.endsWith(' ')) {
           return prev + ' ' + fullTranscript
         }
@@ -105,26 +97,21 @@ const ChatInput = memo(({
     }
   }, [fullTranscript])
 
-  // Clear transcript when we successfully use it
   useEffect(() => {
     if (!isListening && fullTranscript) {
       clearTranscript()
     }
   }, [isListening, fullTranscript, clearTranscript])
 
-  // Check if input is long enough to collapse
   const isLongInput = inputValue.length > LONG_INPUT_THRESHOLD
   const shouldShowCollapsed = isLongInput && !isInputExpanded
 
-  // Process dropped files from drag-drop
   useEffect(() => {
     if (!droppedFiles || droppedFiles.length === 0) return
 
     const processFiles = async () => {
       for (const file of droppedFiles) {
-        // Validate file type
         if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-          console.warn('Unsupported file type:', file.type)
           toast({
             title: "Unsupported File",
             description: `"${file.name}" is not a supported image type.`,
@@ -133,9 +120,7 @@ const ChatInput = memo(({
           continue
         }
 
-        // Validate file size
         if (file.size > MAX_IMAGE_SIZE) {
-          console.warn('File too large:', file.size)
           toast({
             title: "File Too Large",
             description: `"${file.name}" exceeds the 5MB limit.`,
@@ -144,40 +129,34 @@ const ChatInput = memo(({
           continue
         }
 
-        // Convert to base64
         const reader = new FileReader()
         reader.onload = (event) => {
           const result = event.target?.result as string
           if (result) {
             const base64Data = result.split(',')[1]
-            const preview = result
-
             setUploadedImages(prev => [...prev, {
               data: base64Data,
               mediaType: file.type as MediaType,
-              preview
+              preview: result
             }])
           }
         }
         reader.readAsDataURL(file)
       }
-
-      // Clear dropped files after processing
       onClearDroppedFiles?.()
     }
 
     processFiles()
-  }, [droppedFiles, onClearDroppedFiles])
+  }, [droppedFiles, onClearDroppedFiles, toast])
 
-  // Handle file selection
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
 
+    console.log('📎 Files selected:', files.length)
+
     for (const file of Array.from(files)) {
-      // Validate file type
       if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-        console.warn('Unsupported file type:', file.type)
         toast({
           title: "Unsupported File",
           description: `"${file.name}" is not a supported image type.`,
@@ -186,9 +165,7 @@ const ChatInput = memo(({
         continue
       }
 
-      // Validate file size
       if (file.size > MAX_IMAGE_SIZE) {
-        console.warn('File too large:', file.size)
         toast({
           title: "File Too Large",
           description: `"${file.name}" exceeds the 5MB limit.`,
@@ -197,79 +174,58 @@ const ChatInput = memo(({
         continue
       }
 
-      // Convert to base64
       const reader = new FileReader()
       reader.onload = (event) => {
         const result = event.target?.result as string
         if (result) {
-          // Extract base64 data (remove data:image/xxx;base64, prefix)
           const base64Data = result.split(',')[1]
-          const preview = result // Full data URL for preview
-
-          setUploadedImages(prev => [...prev, {
-            data: base64Data,
-            mediaType: file.type as MediaType,
-            preview
-          }])
+          // Add to state with full preview
+          setUploadedImages(prev => {
+            const updated = [...prev, {
+              data: base64Data,
+              mediaType: file.type as MediaType,
+              preview: result
+            }]
+            console.log('✅ Image added! Total:', updated.length)
+            return updated
+          })
         }
+      }
+      reader.onerror = () => {
+        console.error('❌ FileReader error:', file.name)
       }
       reader.readAsDataURL(file)
     }
 
-    // Clear input value so same file can be selected again
     e.target.value = ''
   }, [toast])
 
-  // Remove an uploaded image
   const removeImage = useCallback((index: number) => {
     setUploadedImages(prev => prev.filter((_, i) => i !== index))
   }, [])
 
-  useEffect(() => {
-    console.log('ChatInput State:', { inputValue, disabled, isGenerating });
-  }, [inputValue, disabled, isGenerating]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    console.log("handleInputChange called, value:", e.target.value);
-    setInputValue(e.target.value);
-  };
+    setInputValue(e.target.value)
+  }
 
   const handleSend = async () => {
     const hasText = inputValue.trim().length > 0
     const hasImages = uploadedImages.length > 0
 
-    console.log('handleSend attempt:', {
-      inputValue: inputValue,
-      trimmed: inputValue.trim(),
-      disabled: disabled,
-      hasImages: hasImages,
-      conditionMet: (hasText || hasImages) && !disabled
-    });
-
-    // Allow sending with images even without text
-    // But block sending if currently generating (typing is still allowed)
     if ((hasText || hasImages) && !disabled && !isGenerating && (hasText ? validate(inputValue) : true)) {
-      console.log('--- DEV_LOG: ChatInput handleSend calling onSendMessage with', uploadedImages.length, 'images ---');
       success()
-
-      // Send with images (stripped of preview for API)
       const imagesForApi: ApiImage[] = uploadedImages.map(({ data, mediaType }) => ({ data, mediaType }))
       onSendMessage(inputValue.trim() || 'What do you see in this image?', imagesForApi.length > 0 ? imagesForApi : undefined)
-
       setInputValue('')
-      setUploadedImages([]) // Clear images after sending
+      setUploadedImages([])
       try { localStorage.removeItem('chat_draft') } catch { }
       clearError()
       inputRef.current?.focus()
-    } else {
-      console.log('Send condition NOT MET.');
     }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    console.log("handleKeyPress called, key:", e.key);
     if (e.key === 'Enter' && !e.shiftKey && !(e.metaKey || e.ctrlKey)) {
-      console.log("Enter pressed without shift. Preventing default and calling handleSend.");
       e.preventDefault()
       handleSend()
     }
@@ -277,7 +233,6 @@ const ChatInput = memo(({
       e.preventDefault()
       handleSend()
     }
-    // Cancel generation with Escape key
     if (e.key === 'Escape' && isGenerating && onCancelGeneration) {
       e.preventDefault()
       onCancelGeneration()
@@ -285,16 +240,10 @@ const ChatInput = memo(({
   }
 
   const handleFocus = () => {
-    // setIsFocused(true)
     lightTap()
   }
 
-  const handleBlur = () => {
-    // setIsFocused(false)
-  }
-
   useEffect(() => {
-    // restore draft
     try {
       const draft = localStorage.getItem('chat_draft')
       if (draft) setInputValue(draft)
@@ -303,32 +252,22 @@ const ChatInput = memo(({
   }, [])
 
   useEffect(() => {
-    // persist draft
     try { localStorage.setItem('chat_draft', inputValue) } catch { }
   }, [inputValue])
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Updated to Shift + Cmd + E as per premium mockup
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'e') {
         e.preventDefault()
-        if (onToggleThinking && !disabled) {
-          onToggleThinking()
-        }
+        if (onToggleThinking && !disabled) onToggleThinking()
       }
-      // Add Shift + Cmd + D for Deep Research
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault()
-        if (onToggleDeepResearch && !disabled) {
-          onToggleDeepResearch()
-        }
+        if (onToggleDeepResearch && !disabled) onToggleDeepResearch()
       }
-      // Add Shift + Cmd + X for Deep Experiment
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'x') {
         e.preventDefault()
-        if (onToggleDeepExperiment && !disabled) {
-          onToggleDeepExperiment()
-        }
+        if (onToggleDeepExperiment && !disabled) onToggleDeepExperiment()
       }
     }
 
@@ -338,16 +277,15 @@ const ChatInput = memo(({
 
   return (
     <motion.div
-      className={cn("pt-0 pb-4 px-4 safe-area-bottom", className)} /* Safe area for iPhone home bar */
+      className={cn("pt-0 pb-4 px-4 safe-area-bottom", className)}
       role="form"
     >
       <div className={cn(
         "relative max-w-3xl mx-auto flex flex-col gap-2 rounded-3xl p-3 md:p-3.5",
         "transition-all duration-300 ease-in-out",
-        "bg-zinc-900/40 border border-white/10 shadow-2xl backdrop-blur-2xl", // Transparent glass effect
+        "bg-zinc-900/40 border border-white/10 shadow-2xl backdrop-blur-2xl",
         "focus-within:bg-zinc-900/50 focus-within:border-white/20 focus-within:ring-1 focus-within:ring-teal-500/20"
       )}>
-        {/* Collapsible Preview for Long Input */}
         <AnimatePresence>
           {shouldShowCollapsed && (
             <motion.div
@@ -385,7 +323,6 @@ const ChatInput = memo(({
           )}
         </AnimatePresence>
 
-        {/* Input Area - Collapsed or Expanded */}
         <div className={cn("relative", shouldShowCollapsed && "hidden")}>
           {isLongInput && isInputExpanded && (
             <button
@@ -406,7 +343,6 @@ const ChatInput = memo(({
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}
             onFocus={handleFocus}
-            onBlur={handleBlur}
             disabled={disabled}
             className={cn(
               "w-full flex-1 resize-none overflow-y-auto",
@@ -420,16 +356,17 @@ const ChatInput = memo(({
           />
         </div>
 
-        {/* Image Previews - Artistic Gallery Style */}
+        {/* IMAGE PREVIEWS - NOW ALWAYS VISIBLE */}
         <AnimatePresence>
           {uploadedImages.length > 0 && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="pb-3"
+              transition={{ duration: 0.3 }}
+              className="pb-3 border-t border-white/10 pt-3"
             >
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <span className="text-[10px] uppercase tracking-wider text-amber-400/80 font-medium">
                   📎 {uploadedImages.length} image{uploadedImages.length > 1 ? 's' : ''} attached
                 </span>
@@ -443,17 +380,17 @@ const ChatInput = memo(({
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: index * 0.1 }}
                   >
-                    {/* Film frame effect */}
                     <div className="absolute -inset-1 bg-gradient-to-br from-amber-500/30 via-transparent to-teal-500/30 rounded-xl opacity-60" />
                     <img
                       src={img.preview}
                       alt={`Upload ${index + 1}`}
-                      className="relative w-20 h-20 object-cover rounded-lg border-2 border-white/20 shadow-lg"
+                      className="relative w-24 h-24 object-cover rounded-lg border-2 border-white/20 shadow-lg"
+                      loading="eager"
                     />
-                    {/* Always visible remove button */}
                     <button
                       onClick={() => removeImage(index)}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-colors"
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-colors z-10"
+                      aria-label="Remove image"
                     >
                       <X className="w-3.5 h-3.5 text-white" />
                     </button>
@@ -464,10 +401,8 @@ const ChatInput = memo(({
           )}
         </AnimatePresence>
 
-
         <div className="flex items-center justify-between pt-2 gap-2">
           <div className="flex gap-2 items-center overflow-x-auto scrollbar-hide flex-1 min-w-0">
-            {/* Plus Button - triggers image/file upload */}
             <div className="relative">
               <input
                 type="file"
@@ -485,15 +420,13 @@ const ChatInput = memo(({
                   disabled && "opacity-50 cursor-not-allowed pointer-events-none"
                 )}
                 aria-label="Upload image or file"
+                title="Click to upload images"
               >
                 <Plus className="w-5 h-5" />
               </label>
             </div>
             {onToggleThinking && (
-              <div
-                className="relative group"
-              >
-                {/* Premium Thinking Mode Toggle */}
+              <div className="relative group">
                 <motion.button
                   onClick={onToggleThinking}
                   disabled={disabled}
@@ -508,9 +441,7 @@ const ChatInput = memo(({
                       : "bg-white/5 border-white/10 hover:bg-white/10"
                   )}
                   aria-label="Toggle Extended Thinking"
-                  title={isThinkingEnabled ? "Extended thinking On (⇧⌘E)" : "Extended thinking Off (⇧⌘E)"}
                 >
-                  {/* Animated Background Gradient */}
                   {isThinkingEnabled && (
                     <motion.div
                       className="absolute inset-0 opacity-40"
@@ -521,165 +452,31 @@ const ChatInput = memo(({
                           'linear-gradient(90deg, transparent, rgba(74,144,226,0.15), transparent)',
                         ]
                       }}
-                      transition={{
-                        duration: 3,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                      }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                     />
                   )}
-
-                  {/* Shimmer Overlay */}
-                  {isThinkingEnabled && (
-                    <motion.div
-                      className="absolute inset-0 opacity-30"
-                      style={{
-                        background: 'linear-gradient(110deg, transparent 25%, rgba(74,144,226,0.4) 50%, transparent 75%)',
-                      }}
-                      animate={{
-                        x: ['-200%', '200%']
-                      }}
-                      transition={{
-                        duration: 4,
-                        repeat: Infinity,
-                        ease: "linear",
-                        repeatDelay: 2
-                      }}
-                    />
-                  )}
-
-                  {/* Icon with Advanced Animations */}
                   <div className="relative z-10">
-                    {/* Spinning Circle Border */}
-                    {isThinkingEnabled && (
-                      <motion.div
-                        className="absolute inset-0 -m-1.5"
-                        animate={{ rotate: 360 }}
-                        transition={{
-                          duration: 3,
-                          repeat: Infinity,
-                          ease: "linear"
-                        }}
-                      >
-                        <svg className="w-7 h-7" viewBox="0 0 28 28">
-                          <circle
-                            cx="14"
-                            cy="14"
-                            r="12"
-                            fill="none"
-                            stroke="url(#gradient)"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeDasharray="75 150"
-                          />
-                          <defs>
-                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="#4A90E2" stopOpacity="0.8" />
-                              <stop offset="50%" stopColor="#4A90E2" stopOpacity="0.4" />
-                              <stop offset="100%" stopColor="#4A90E2" stopOpacity="0" />
-                            </linearGradient>
-                          </defs>
-                        </svg>
-                      </motion.div>
-                    )}
-
                     <motion.div
-                      animate={isThinkingEnabled ? {
-                        rotate: [0, 360]
-                      } : {
-                        rotate: 0
-                      }}
-                      whileHover={{
-                        rotate: isThinkingEnabled ? undefined : 15
-                      }}
-                      transition={{
-                        rotate: { duration: 20, repeat: Infinity, ease: "linear" }
-                      }}
+                      animate={isThinkingEnabled ? { rotate: [0, 360] } : { rotate: 0 }}
+                      transition={{ rotate: { duration: 20, repeat: Infinity, ease: "linear" } }}
                     >
                       <HistoryIcon className={cn(
                         "w-4 h-4 transition-all duration-500",
                         isThinkingEnabled
                           ? "text-[#4A90E2] drop-shadow-[0_0_8px_rgba(74,144,226,0.7)] filter brightness-110"
-                          : "text-zinc-400 group-hover:text-zinc-300 group-hover:drop-shadow-[0_0_4px_rgba(255,255,255,0.3)]"
+                          : "text-zinc-400 group-hover:text-zinc-300"
                       )} />
                     </motion.div>
                   </div>
-
-                  {/* Text Label with Glow - hidden on mobile */}
-                  <span
-                    className={cn(
-                      "hidden sm:inline text-[11px] font-bold tracking-[0.12em] z-10 relative uppercase italic",
-                      isThinkingEnabled ? "text-[#4A90E2]" : "text-zinc-500 group-hover:text-zinc-300"
-                    )}>
+                  <span className={cn(
+                    "hidden sm:inline text-[11px] font-bold tracking-[0.12em] z-10 relative uppercase italic",
+                    isThinkingEnabled ? "text-[#4A90E2]" : "text-zinc-500 group-hover:text-zinc-300"
+                  )}>
                     Presence
                   </span>
-
-                  {/* Breathing Border Glow */}
-                  {isThinkingEnabled && (
-                    <motion.div
-                      className="absolute inset-0 rounded-xl opacity-50 pointer-events-none"
-                      animate={{
-                        boxShadow: [
-                          '0 0 12px rgba(74,144,226,0.2), inset 0 0 12px rgba(74,144,226,0.1)',
-                          '0 0 20px rgba(74,144,226,0.4), inset 0 0 16px rgba(74,144,226,0.2)',
-                          '0 0 12px rgba(74,144,226,0.2), inset 0 0 12px rgba(74,144,226,0.1)',
-                        ]
-                      }}
-                      transition={{
-                        duration: 2.5,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                      }}
-                    />
-                  )}
-
-                  {/* Corner Accent Particles */}
-                  {isThinkingEnabled && (
-                    <>
-                      <motion.div
-                        className="absolute top-0 right-0 w-1 h-1 bg-[#4A90E2] rounded-full opacity-60"
-                        animate={{
-                          scale: [0, 1, 0],
-                          opacity: [0, 0.8, 0]
-                        }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          delay: 0
-                        }}
-                      />
-                      <motion.div
-                        className="absolute bottom-0 left-0 w-1 h-1 bg-[#4A90E2] rounded-full opacity-60"
-                        animate={{
-                          scale: [0, 1, 0],
-                          opacity: [0, 0.8, 0]
-                        }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          delay: 1
-                        }}
-                      />
-                    </>
-                  )}
-
-                  {/* Hover Magnetic Effect Background */}
-                  <motion.div
-                    className="absolute inset-0 rounded-xl bg-gradient-to-br from-[#4A90E2]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                  />
                 </motion.button>
-
-                {/* Keyboard Shortcut Hint */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  whileHover={{ opacity: 1, y: 0 }}
-                  className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/90 rounded-md border border-white/10 backdrop-blur-xl pointer-events-none whitespace-nowrap"
-                >
-                  <span className="text-[10px] text-zinc-400 font-mono">⇧⌘E</span>
-                </motion.div>
               </div>
             )}
-
             {onToggleDeepResearch && (
               <div className="relative group">
                 <motion.button
@@ -696,34 +493,15 @@ const ChatInput = memo(({
                       : "bg-white/5 border-white/10 hover:bg-white/10 hover:scale-[1.02]"
                   )}
                   aria-label="Toggle Oracle Search"
-                  title={isDeepResearchEnabled ? "Oracle On (⇧⌘D)" : "Oracle Off (⇧⌘D)"}
                 >
-                  {isDeepResearchEnabled && (
-                    <motion.div
-                      className="absolute inset-0 opacity-40"
-                      animate={{
-                        background: [
-                          'linear-gradient(90deg, transparent, rgba(245,158,11,0.15), transparent)',
-                          'linear-gradient(90deg, transparent, rgba(245,158,11,0.25), transparent)',
-                          'linear-gradient(90deg, transparent, rgba(245,158,11,0.15), transparent)',
-                        ]
-                      }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                    />
-                  )}
                   <div className="relative z-10">
                     <motion.div
-                      animate={isDeepResearchEnabled ? {
-                        scale: [1, 1.2, 1],
-                        rotate: [0, 10, -10, 0]
-                      } : { scale: 1, rotate: 0 }}
+                      animate={isDeepResearchEnabled ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : { scale: 1, rotate: 0 }}
                       transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                     >
                       <Sparkles className={cn(
                         "w-4 h-4 transition-all duration-500",
-                        isDeepResearchEnabled
-                          ? "text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.7)]"
-                          : "text-zinc-400 group-hover:text-zinc-300"
+                        isDeepResearchEnabled ? "text-amber-400" : "text-zinc-400 group-hover:text-zinc-300"
                       )} />
                     </motion.div>
                   </div>
@@ -734,19 +512,8 @@ const ChatInput = memo(({
                     Oracle
                   </span>
                 </motion.button>
-
-                {/* Keyboard Shortcut Hint */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  whileHover={{ opacity: 1, y: 0 }}
-                  className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/90 rounded-md border border-white/10 backdrop-blur-xl pointer-events-none whitespace-nowrap"
-                >
-                  <span className="text-[10px] text-zinc-400 font-mono">⇧⌘D</span>
-                </motion.div>
               </div>
             )}
-
-            {/* Deep Experiment Toggle */}
             {onToggleDeepExperiment && (
               <div className="relative group">
                 <motion.button
@@ -763,34 +530,15 @@ const ChatInput = memo(({
                       : "bg-white/5 border-white/10 hover:bg-white/10 hover:scale-[1.02]"
                   )}
                   aria-label="Toggle Deep Experiment"
-                  title={isDeepExperimentEnabled ? "Experiment On (⇧⌘X)" : "Experiment Off (⇧⌘X)"}
                 >
-                  {isDeepExperimentEnabled && (
-                    <motion.div
-                      className="absolute inset-0 opacity-40"
-                      animate={{
-                        background: [
-                          'linear-gradient(90deg, transparent, rgba(139,92,246,0.15), transparent)',
-                          'linear-gradient(90deg, transparent, rgba(139,92,246,0.25), transparent)',
-                          'linear-gradient(90deg, transparent, rgba(139,92,246,0.15), transparent)',
-                        ]
-                      }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                    />
-                  )}
                   <div className="relative z-10">
                     <motion.div
-                      animate={isDeepExperimentEnabled ? {
-                        scale: [1, 1.15, 1],
-                        rotate: [0, -5, 5, 0]
-                      } : { scale: 1, rotate: 0 }}
+                      animate={isDeepExperimentEnabled ? { scale: [1, 1.15, 1], rotate: [0, -5, 5, 0] } : { scale: 1, rotate: 0 }}
                       transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
                     >
                       <FlaskConical className={cn(
                         "w-4 h-4 transition-all duration-500",
-                        isDeepExperimentEnabled
-                          ? "text-violet-400 drop-shadow-[0_0_8px_rgba(139,92,246,0.7)]"
-                          : "text-zinc-400 group-hover:text-zinc-300"
+                        isDeepExperimentEnabled ? "text-violet-400" : "text-zinc-400 group-hover:text-zinc-300"
                       )} />
                     </motion.div>
                   </div>
@@ -801,22 +549,11 @@ const ChatInput = memo(({
                     Experiment
                   </span>
                 </motion.button>
-
-                {/* Keyboard Shortcut Hint */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  whileHover={{ opacity: 1, y: 0 }}
-                  className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/90 rounded-md border border-white/10 backdrop-blur-xl pointer-events-none whitespace-nowrap"
-                >
-                  <span className="text-[10px] text-zinc-400 font-mono">⇧⌘X</span>
-                </motion.div>
               </div>
             )}
           </div>
 
-          {/* Right side: Voice + Send buttons - always visible */}
           <div className="flex items-center gap-1 shrink-0">
-            {/* Voice Input Button */}
             {isVoiceSupported && (
               <motion.button
                 onClick={toggleListening}
@@ -828,14 +565,11 @@ const ChatInput = memo(({
                 )}
                 animate={isListening ? { scale: [1, 1.05, 1] } : {}}
                 transition={isListening ? { duration: 1, repeat: Infinity } : {}}
-                aria-label={isListening ? "Stop recording" : "Start voice input"}
-                title={isListening ? "Stop recording" : "Voice input"}
               >
                 <Mic className="w-4 h-4" />
               </motion.button>
             )}
 
-            {/* Send Button OR Stop Button */}
             <AnimatePresence mode="wait">
               {isGenerating ? (
                 <motion.div
@@ -845,12 +579,9 @@ const ChatInput = memo(({
                   exit={{ scale: 0.9, opacity: 0 }}
                   transition={{ duration: 0.15 }}
                 >
-                  {/* Claude-style Stop Button */}
                   <button
                     onClick={onCancelGeneration}
                     className="h-10 w-10 rounded-full bg-[#D97757] flex items-center justify-center hover:bg-[#c96a4d] active:scale-95 transition-all cursor-pointer"
-                    aria-label="Stop generation"
-                    title="Stop generating (Esc)"
                   >
                     <div className="w-3.5 h-3.5 bg-white rounded-[2px]" />
                   </button>
@@ -864,23 +595,6 @@ const ChatInput = memo(({
                   transition={{ duration: 0.15 }}
                   className="relative"
                 >
-                  {/* Animated Gradient Border Ring */}
-                  {inputValue.trim() && !disabled && (
-                    <motion.div
-                      className="absolute inset-0 rounded-[14px] shiny-button-wrapper"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      style={{
-                        background: 'conic-gradient(from var(--gradient-angle), transparent 0%, #F59E0B 10%, #D97757 25%, #F59E0B 40%, transparent 50%)',
-                        padding: '2px',
-                        borderRadius: '14px',
-                      }}
-                    >
-                      <div className="w-full h-full rounded-[12px] bg-[#1a1a1e]" />
-                    </motion.div>
-                  )}
-
-                  {/* Pulse Glow when ready */}
                   {inputValue.trim() && !disabled && (
                     <motion.div
                       className="absolute inset-0 rounded-[14px] pointer-events-none"
@@ -891,26 +605,21 @@ const ChatInput = memo(({
                           '0 0 15px rgba(217, 119, 87, 0.3)',
                         ]
                       }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                      }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                     />
                   )}
 
                   <Button
                     onClick={handleSend}
-                    disabled={!inputValue.trim() || disabled}
+                    disabled={!inputValue.trim() && uploadedImages.length === 0 || disabled}
                     size="icon"
                     className={cn(
                       "relative h-10 w-10 rounded-[14px] transition-all duration-300 z-10",
                       "bg-[#D97757] text-white shadow-lg",
                       "hover:bg-[#e88868] hover:scale-105 active:scale-95",
                       "disabled:bg-[#1a1a1e] disabled:text-zinc-700 disabled:shadow-none",
-                      inputValue.trim() && !disabled && "shadow-[0_0_20px_rgba(217,119,87,0.4)]"
+                      (inputValue.trim() || uploadedImages.length > 0) && !disabled && "shadow-[0_0_20px_rgba(217,119,87,0.4)]"
                     )}
-                    aria-label="Send message"
                   >
                     <ArrowUp className="w-5 h-5" />
                   </Button>
