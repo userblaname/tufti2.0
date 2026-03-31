@@ -4,15 +4,22 @@
  * Full Tufti backend with:
  * - Elite Intent Detection
  * - RAG with Pinecone (Books + Courses)
- * - Memory Handler
+ * - Memory Handler Setup Support
  * - Claude via Azure Anthropic
  */
 
 const { Pinecone } = require('@pinecone-database/pinecone');
+const Sentry = require('@sentry/node');
+const { createClient } = require('@supabase/supabase-js');
 
 // ============================================
 // CONFIGURATION
 // ============================================
+const SENTRY_DSN = process.env.SENTRY_DSN;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
+
 const ANTHROPIC_ENDPOINT = process.env.ANTHROPIC_ENDPOINT;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-5';
@@ -23,9 +30,23 @@ const AZURE_EMBEDDING_KEY = process.env.AZURE_EMBEDDING_KEY;
 const AZURE_EMBEDDING_DEPLOYMENT = process.env.AZURE_EMBEDDING_DEPLOYMENT;
 const EMBEDDING_DIMENSIONS = 3072;
 
+// Initialize Sentry
+if (SENTRY_DSN) {
+  Sentry.init({ 
+    dsn: SENTRY_DSN,
+    tracesSampleRate: 1.0
+  });
+}
+
+// Initialize Supabase
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+}
+
 // Rate limiting
 const RATE_LIMIT_WINDOW_MS = 60000;
-const RATE_LIMIT_MAX = 30;
+const RATE_LIMIT_MAX = 20;
 const buckets = new Map();
 
 // Pinecone client
@@ -152,7 +173,6 @@ function formatRAGContext(passages, intent, emotional) {
     emotionalGuidance = '\n⚠️ EMOTIONAL CONTEXT: User seems frustrated. Acknowledge their struggle.';
   }
 
-  // Anti-hallucination source manifest
   const sourceManifest = `
 ⚠️ CRITICAL: YOUR AVAILABLE KNOWLEDGE SOURCES
 You have access to ONLY these sources. DO NOT invent or hallucinate others:
@@ -195,84 +215,242 @@ function isRateLimited(ip) {
 }
 
 // ============================================
+// PROFILE & JOURNEY (Supabase)
+// ============================================
+async function getProfileContext(userId) {
+  if (!supabase || !userId) return '';
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('dossier, dossier_text')
+      .eq('user_id', userId)
+      .single();
+    if (error || (!data?.dossier && !data?.dossier_text)) return '';
+
+    // Prefer structured dossier, fall back to text
+    if (data.dossier && Object.keys(data.dossier).length > 0) {
+      const d = data.dossier;
+      let prompt = '\n═══════════════════════════════════════════════════════════════\n📋 USER PROFILE DOSSIER — PERMANENT MEMORY\n═══════════════════════════════════════════════════════════════\n\n';
+      if (d.identity) {
+        prompt += 'IDENTITY:\n';
+        if (d.identity.name) prompt += `  Name: ${d.identity.name}\n`;
+        if (d.identity.location) prompt += `  Location: ${d.identity.location}\n`;
+        if (d.identity.occupation) prompt += `  Occupation: ${d.identity.occupation}\n`;
+        if (d.identity.languages?.length) prompt += `  Languages: ${d.identity.languages.join(', ')}\n`;
+        prompt += '\n';
+      }
+      if (d.people && Object.keys(d.people).length > 0) {
+        prompt += 'IMPORTANT PEOPLE:\n';
+        for (const [name, info] of Object.entries(d.people)) {
+          const rel = typeof info === 'object' ? info.relationship : info;
+          prompt += `  • ${name}: ${rel}\n`;
+        }
+        prompt += '\n';
+      }
+      if (d.current_state) {
+        if (d.current_state.goals?.length > 0) {
+          prompt += 'ACTIVE GOALS:\n';
+          d.current_state.goals.forEach(g => prompt += `  • ${g}\n`);
+          prompt += '\n';
+        }
+        if (d.current_state.focus) prompt += `CURRENT FOCUS: ${d.current_state.focus}\n\n`;
+      }
+      if (d.important_facts?.length > 0) {
+        prompt += 'IMPORTANT FACTS:\n';
+        d.important_facts.forEach(f => prompt += `  • ${f}\n`);
+        prompt += '\n';
+      }
+      prompt += '═══════════════════════════════════════════════════════════════\nCRITICAL: These are verified facts. NEVER contradict them.\n═══════════════════════════════════════════════════════════════';
+      return prompt;
+    }
+
+    if (data.dossier_text) {
+      return `\n═══════════════════════════════════════════════════════════════\n📋 PERMANENT MEMORY — WHAT YOU KNOW ABOUT THIS PERSON\n═══════════════════════════════════════════════════════════════\n\n${data.dossier_text}\n\n═══════════════════════════════════════════════════════════════\nCRITICAL: These are CONFIRMED facts. Never contradict them.\n═══════════════════════════════════════════════════════════════`;
+    }
+    return '';
+  } catch (err) {
+    console.error('[Profile] Fetch error:', err.message);
+    return '';
+  }
+}
+
+async function getJourneyContext(userId) {
+  if (!supabase || !userId) return '';
+  try {
+    const { data, error } = await supabase
+      .from('user_journey')
+      .select('summary, struggles, breakthroughs, current_focus')
+      .eq('user_id', userId)
+      .single();
+    if (error || !data?.summary) return '';
+
+    const struggles = Array.isArray(data.struggles) ? data.struggles : [];
+    const breakthroughs = Array.isArray(data.breakthroughs) ? data.breakthroughs : [];
+
+    return `\n═══════════════════════════════════════════════════════════════\n🧠 TUFTI'S MEMORY OF THIS SOUL\n═══════════════════════════════════════════════════════════════\n\nJOURNEY SO FAR:\n${data.summary}\n\n${struggles.length > 0 ? `CURRENT STRUGGLES:\n${struggles.map(s => `• ${s}`).join('\n')}\n\n` : ''}${breakthroughs.length > 0 ? `BREAKTHROUGHS:\n${breakthroughs.map(b => `• ${b}`).join('\n')}\n\n` : ''}${data.current_focus ? `CURRENT FOCUS:\n${data.current_focus}\n\n` : ''}═══════════════════════════════════════════════════════════════\nUse this context to personalize your guidance.\n═══════════════════════════════════════════════════════════════`;
+  } catch (err) {
+    console.error('[Journey] Fetch error:', err.message);
+    return '';
+  }
+}
+
+// ============================================
 // MAIN HANDLER
 // ============================================
 exports.handler = async function (event) {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
-  }
-
-  const clientIP = getClientIP(event);
-  if (isRateLimited(clientIP)) {
-    return { statusCode: 429, body: JSON.stringify({ error: 'Rate limited' }) };
-  }
-
   try {
-    await initPinecone();
-
-    const { messages, systemPrompt } = JSON.parse(event.body || '{}');
-
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing messages' }) };
+    if (event.httpMethod !== 'POST') {
+      return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
+    const { messages, userId, thinkingEnabled: reqThinkingEnabled } = JSON.parse(event.body || '{}');
+    const uid = userId || 'default-user';
+    const isAdmin = uid === ADMIN_USER_ID;
+
+    // 1. Rate Limiting Check
+    const clientIP = getClientIP(event);
+    if (!isAdmin && isRateLimited(clientIP)) {
+      return { statusCode: 429, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Rate limited' }) };
+    }
+
+    // 2. Daily Message Limit
+    if (!isAdmin && supabase) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const { count, error } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', uid)
+        .gte('created_at', today.toISOString());
+
+      if (!error && count >= 50) {
+        return {
+          statusCode: 429,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            error: 'daily_limit_reached',
+            message: "You've walked far enough for today, dear one. The scene needs time to develop. Come back tomorrow, the alternatives space will still be there."
+          })
+        };
+      }
+    }
+
+    await initPinecone();
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return { statusCode: 400, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Missing messages' }) };
+    }
+
+    // Separate system messages from conversation messages
+    // Frontend sends Tufti system prompt as role:'system' in messages array
+    // Anthropic API requires system as a separate parameter
+    const systemMessages = messages.filter(m => m.role === 'system');
+    const chatMessages = messages.filter(m => m.role !== 'system');
+    const systemPrompt = systemMessages
+      .map(m => typeof m.content === 'string' ? m.content : '')
+      .filter(Boolean)
+      .join('\n\n');
+
     // Get user message for RAG
-    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user');
     const userMessage = typeof lastUserMsg?.content === 'string'
       ? lastUserMsg.content
-      : lastUserMsg?.content?.find(b => b.type === 'text')?.text || '';
+      : lastUserMsg?.content?.find?.(b => b.type === 'text')?.text || '';
 
     // Elite intent detection
     const intent = detectIntent(userMessage);
     const emotional = detectEmotionalState(userMessage);
 
-    console.log(`🎯 Intent: ${intent.type} | Emotional: ${emotional}`);
+    console.log(`[Intent] ${intent.type} | Emotional: ${emotional} | User: ${uid.substring(0, 8)}... | Admin: ${isAdmin}`);
 
-    // RAG retrieval with source preference
-    let ragContext = '';
-    if (intent.type !== 'chat' && PINECONE_API_KEY && AZURE_EMBEDDING_KEY) {
-      const passages = await searchRAG(userMessage, 10);
+    // Parallel fetch: RAG + Profile + Journey
+    const [ragContext, profileContext, journeyContext] = await Promise.all([
+      (async () => {
+        if (intent.type === 'chat' || !PINECONE_API_KEY || !AZURE_EMBEDDING_KEY) return '';
+        const passages = await searchRAG(userMessage, 10);
+        const weighted = passages.map(p => ({
+          ...p,
+          adjustedScore: p.score * (p.source_type === 'book' ? intent.sourcePreference.books : intent.sourcePreference.courses)
+        }));
+        weighted.sort((a, b) => b.adjustedScore - a.adjustedScore);
+        return formatRAGContext(weighted.slice(0, 5), intent, emotional);
+      })(),
+      getProfileContext(uid),
+      getJourneyContext(uid)
+    ]);
 
-      // Apply source preference weighting
-      const weighted = passages.map(p => ({
-        ...p,
-        adjustedScore: p.score * (p.source_type === 'book' ? intent.sourcePreference.books : intent.sourcePreference.courses)
-      }));
-      weighted.sort((a, b) => b.adjustedScore - a.adjustedScore);
+    if (profileContext) console.log(`[Profile] Loaded dossier for ${uid.substring(0, 8)}...`);
+    if (journeyContext) console.log(`[Journey] Loaded context for ${uid.substring(0, 8)}...`);
 
-      ragContext = formatRAGContext(weighted.slice(0, 5), intent, emotional);
+    // Build full system prompt: Tufti persona + profile + journey + RAG
+    const fullSystemPrompt = systemPrompt + profileContext + journeyContext + ragContext;
+
+    // 3. Thinking Mode configuration
+    let thinkingEnabled = reqThinkingEnabled || false;
+    if (isAdmin) {
+      thinkingEnabled = true;
     }
 
-    // Build full system prompt
-    const fullSystemPrompt = (systemPrompt || '') + ragContext;
+    const fetchBody = {
+      model: ANTHROPIC_MODEL,
+      max_tokens: thinkingEnabled ? 64000 : 4096,
+      system: fullSystemPrompt,
+      messages: chatMessages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content : m.content
+      }))
+    };
+
+    if (thinkingEnabled) {
+      fetchBody.thinking = {
+        type: 'enabled',
+        budget_tokens: isAdmin ? 60000 : 32000
+      };
+    }
 
     // Call Claude
-    const response = await fetch(ANTHROPIC_ENDPOINT, {
+    let response = await fetch(ANTHROPIC_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 4096,
-        system: fullSystemPrompt,
-        messages: messages.map(m => ({
-          role: m.role,
-          content: typeof m.content === 'string' ? m.content : m.content
-        }))
-      })
+      body: JSON.stringify(fetchBody)
     });
+
+    // If thinking mode fails (Azure doesn't support it), retry without thinking
+    if (!response.ok && thinkingEnabled) {
+      const errorText = await response.text();
+      console.error('[Thinking] Failed, falling back to standard mode:', response.status, errorText.substring(0, 200));
+
+      delete fetchBody.thinking;
+      fetchBody.max_tokens = 4096;
+
+      response = await fetch(ANTHROPIC_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(fetchBody)
+      });
+    }
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Claude error:', error);
+      console.error('[Claude] Error:', response.status, error.substring(0, 200));
       return { statusCode: response.status, body: error };
     }
 
     const data = await response.json();
-    const content = data.content?.[0]?.text || '';
+    // Handle both regular and thinking responses
+    const content = data.content
+      ?.filter(block => block.type === 'text')
+      ?.map(block => block.text)
+      ?.join('') || '';
 
     return {
       statusCode: 200,
@@ -281,7 +459,13 @@ exports.handler = async function (event) {
     };
 
   } catch (error) {
-    console.error('Function error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    console.error('[Function] Error:', error);
+
+    // 4. Capture Exceptions with Sentry
+    if (SENTRY_DSN) {
+      Sentry.captureException(error);
+    }
+
+    return { statusCode: 500, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: error.message }) };
   }
 };

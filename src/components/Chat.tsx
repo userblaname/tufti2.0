@@ -1,12 +1,13 @@
 // src/components/Chat.tsx
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useChat } from '@/hooks/useChat';
 import Sidebar from './chat/Sidebar';
 import ChatTopBar from './chat/ChatTopBar';
 import MessageList from './chat/MessageList';
 import ChatInput from './chat/ChatInput';
+import GlobalDropZone from './chat/GlobalDropZone';
 import { OnboardingOptions } from './onboarding/OnboardingOptions';
 import CommandPalette from './command-palette/CommandPalette';
 import type { UserProfile } from '@/lib/types';
@@ -21,6 +22,11 @@ interface ChatProps {
 export default function Chat({ userProfile, signOut }: ChatProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // 🧲 Global Drag & Drop State
+  const [isDragging, setIsDragging] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
+  const dragCounter = useRef(0);
+
   const {
     messages,
     isTyping,
@@ -32,7 +38,6 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
     retryLastMessage,
     clearChat,
     chatError,
-    isLoadingHistory,
     isOnboarding,
     currentOnboardingQuestion,
     handleOnboardingAnswer,
@@ -50,7 +55,70 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
     isLoadingMore,
   } = useChat(userProfile);
 
-  const { toast, toasts, removeToast } = useToast();
+  const { toasts, removeToast } = useToast();
+
+  // 🧲 Global Magnet: Handle drag events on the entire window
+  useEffect(() => {
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current += 1;
+
+      // Only show if dragging files
+      if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+        setIsDragging(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current -= 1;
+
+      if (dragCounter.current === 0) {
+        setIsDragging(false);
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Required to allow dropping
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      dragCounter.current = 0;
+
+      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        const files = Array.from(e.dataTransfer.files);
+        console.log('[MAGNET] 🧲 Captured', files.length, 'files');
+        setDroppedFiles(files);
+      }
+    };
+
+    // Attach to window for true global detection
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+
+  const handleClearDroppedFiles = useCallback(() => {
+    setDroppedFiles([]);
+  }, []);
 
   const handleNavigateToMessage = (messageId: string) => {
     const element = document.getElementById(`message-${messageId}`);
@@ -70,6 +138,8 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
   return (
     <ToastProvider>
       <div className="flex h-screen-safe bg-zinc-950 relative overflow-hidden safe-area-inset">
+        <GlobalDropZone isDragging={isDragging} />
+
         <CommandPalette
           messages={messages}
           onNavigateToMessage={handleNavigateToMessage}
@@ -138,6 +208,8 @@ export default function Chat({ userProfile, signOut }: ChatProps) {
                 isDeepExperimentEnabled={isDeepExperimentEnabled}
                 onToggleDeepExperiment={toggleDeepExperiment}
                 onCancelGeneration={cancelGeneration}
+                droppedFiles={droppedFiles}
+                onClearDroppedFiles={handleClearDroppedFiles}
               />
             )}
           </div>

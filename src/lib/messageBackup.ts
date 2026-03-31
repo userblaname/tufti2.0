@@ -58,3 +58,37 @@ export function hasBackupMessages(): boolean {
         return false
     }
 }
+
+/**
+ * Sync localStorage messages to backend for memory embeddings
+ * Call this when user logs in or periodically
+ */
+export async function syncToMemory(userId: string): Promise<{ synced: number; failed: number }> {
+    try {
+        const messages = getBackupMessages()
+        if (messages.length === 0) {
+            console.log('[Memory Sync] No messages to sync')
+            return { synced: 0, failed: 0 }
+        }
+
+        console.log(`[Memory Sync] Starting sync of ${messages.length} messages...`)
+
+        const response = await fetch('http://localhost:3001/api/memory/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, messages })
+        })
+
+        if (!response.ok) {
+            throw new Error(`Sync failed: ${response.status}`)
+        }
+
+        const result = await response.json()
+        console.log(`[Memory Sync] ✅ Complete: ${result.synced} synced, ${result.failed} failed`)
+        return { synced: result.synced, failed: result.failed }
+    } catch (e) {
+        console.error('[Memory Sync] Error:', e)
+        return { synced: 0, failed: -1 }
+    }
+}
+

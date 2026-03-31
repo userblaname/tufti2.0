@@ -13,19 +13,36 @@ interface ImageContent {
   }
 }
 
+// Document content block for Claude PDF support (native 2025-2026 API)
+interface DocumentContent {
+  type: 'document'
+  source: {
+    type: 'base64'
+    media_type: 'application/pdf'
+    data: string
+  }
+}
+
 // Text content block
 interface TextContent {
   type: 'text'
   text: string
 }
 
-// Message can have string content or content blocks (for images)
+// Message can have string content or content blocks (for images, documents)
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string | (TextContent | ImageContent)[];
+  content: string | (TextContent | ImageContent | DocumentContent)[];
 }
 
-// Image data passed from useChat
+// Attachment data passed from useChat (supports images, PDFs, and text files)
+interface AttachmentData {
+  data: string
+  mediaType: string  // MIME type (image/jpeg, application/pdf, text/plain, etc.)
+  fileName?: string
+}
+
+// Legacy: Image-only data type for backwards compatibility
 interface ImageData {
   data: string
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
@@ -56,7 +73,7 @@ export interface AgentEvent {
 /**
  * Securely sends the conversation to our backend and returns the AI's response.
  * @param conversationHistory An array of chat messages.
- * @param images Optional array of images to include with the latest message
+ * @param images Optional array of attachments (images, PDFs, text files) to include
  * @returns The AI's response message as a string.
  */
 export async function getAiResponse(
@@ -66,7 +83,7 @@ export async function getAiResponse(
   thinkingEnabled: boolean = false,
   deepResearchEnabled: boolean = true,
   userId?: string,
-  images?: ImageData[],
+  images?: AttachmentData[],  // Now supports images, PDFs, and text files
   signal?: AbortSignal,
   onAgentEvent?: (event: AgentEvent) => void,
   deepExperimentEnabled: boolean = false
@@ -126,28 +143,61 @@ export async function getAiResponse(
           ...messagesWithTimestamps,
         ]
 
-    // If images are provided, convert the last user message to content blocks format
+    // If attachments (images/PDFs/text) are provided, convert the last user message to content blocks format
     if (images && images.length > 0) {
       const lastMessageIndex = messagesWithSystem.length - 1
       const lastMessage = messagesWithSystem[lastMessageIndex]
 
       if (lastMessage && lastMessage.role === 'user') {
-        // Build content blocks: images first, then text
-        const contentBlocks: (TextContent | ImageContent)[] = []
+        // Build content blocks: attachments first, then text
+        const contentBlocks: (TextContent | ImageContent | DocumentContent)[] = []
 
-        // Add image blocks
-        for (const img of images) {
-          contentBlocks.push({
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: img.mediaType,
-              data: img.data
-            }
-          })
+        // Process each attachment based on its type
+        for (const attachment of images) {
+          const mimeType = attachment.mediaType
+
+          // === IMAGE HANDLING ===
+          if (mimeType.startsWith('image/')) {
+            contentBlocks.push({
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                data: attachment.data
+              }
+            })
+            console.log('[chat-service] Added image block:', mimeType)
+          }
+          // === PDF HANDLING (Anthropic native document support) ===
+          else if (mimeType === 'application/pdf') {
+            contentBlocks.push({
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: attachment.data
+              }
+            })
+            console.log('[chat-service] Added PDF document block')
+          }
+          // === TEXT/CODE FILE HANDLING (inject as formatted text) ===
+          else if (mimeType.startsWith('text/') || mimeType === 'application/json') {
+            // Get filename from metadata if available
+            const fileName = (attachment as any).fileName || 'file'
+            const ext = fileName.split('.').pop() || 'txt'
+
+            // Wrap in code block with syntax highlighting
+            const codeBlock = `📎 **${fileName}**\n\`\`\`${ext}\n${attachment.data}\n\`\`\``
+
+            contentBlocks.push({
+              type: 'text',
+              text: codeBlock
+            })
+            console.log('[chat-service] Added text file block:', fileName)
+          }
         }
 
-        // Add text block if there's text content
+        // Add original message text if there's text content
         const textContent = typeof lastMessage.content === 'string'
           ? lastMessage.content
           : ''
@@ -164,7 +214,7 @@ export async function getAiResponse(
           content: contentBlocks
         }
 
-        console.log('[chat-service] Added', images.length, 'image(s) to message')
+        console.log('[chat-service] Added', images.length, 'attachment(s) to message')
       }
     }
 

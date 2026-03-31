@@ -109,9 +109,10 @@ export const MessageSchema = z.object({
     isComplete: z.boolean()
   })).optional(), // Multi-agent thinking chain
   images: z.array(z.object({
-    data: z.string(), // base64 encoded
-    mediaType: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp"])
-  })).optional(), // Support for image uploads
+    data: z.string(), // base64 encoded (for images/PDFs) or raw text (for text files)
+    mediaType: z.string(), // Any MIME type (image/jpeg, application/pdf, text/plain, etc.)
+    fileName: z.string().optional() // Optional filename for text/code files
+  })).optional(), // Support for image, PDF, and text file uploads
   metadata: z.object({
     relevanceScore: z.number().optional(),
     sourceConfidence: z.number().optional(),

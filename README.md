@@ -22,13 +22,15 @@ A premium conversational AI interface inspired by the teachings of **Tufti the P
 - Tufti the Priestess (666 paragraphs)
 - What Tufti Didn't Say (748 paragraphs)
 - Master of Reality (693 paragraphs)
+- Transurfing Yourself (607 paragraphs) ✨ *NEW*
+- Hacking the Technogenic System (1,171 paragraphs) ✨ *NEW*
 
 **Courses (Renee Garcia):**
 - Reality 2.0 (11 modules - Pendulums, Alternatives Space, Wave of Fortune, etc.)
 - Becoming Magnetic (4 days - Self-love, relationships, declarations)
 - Mo Money (4 lessons - Wealth, limiting beliefs, materialization)
 
-**Total: 6,611 paragraphs embedded in Pinecone**
+**Total: 8,389+ paragraphs embedded in Pinecone**
 
 ### 💬 Premium Chat Experience
 - **Streaming Responses**: Word-by-word streaming with blinking cursor
@@ -56,6 +58,9 @@ A premium conversational AI interface inspired by the teachings of **Tufti the P
 - **Rolling Summary**: Auto-compresses your entire journey into structured summary
 - **Personalized Context**: Tufti remembers your struggles, breakthroughs, and current focus
 - **Auto-Update**: Every 20 messages, Claude extracts key moments and updates your profile
+- **Robust Extraction**: Safe handling of multi-modal messages (images/text) and strict system prompt filtering to prevent API token overflow
+- **Backfill Recovery**: Top-200 importance-ranked message extraction to rebuild context after gaps
+- **Conversation Export**: Full message history export with timestamps, roles, and date grouping
 - **Cloud Storage**: Journey data stored in Supabase, works across devices
 
 ---
@@ -159,10 +164,14 @@ Access at: **http://localhost:5173**
 │   │   └── journey-manager.js  # Rolling Journey Summary System
 │   ├── scripts/
 │   │   ├── clean-knowledge.js  # Cleans all books + courses
-│   │   └── embed-knowledge.js  # Embeds to Pinecone
+│   │   ├── embed-knowledge.js  # Embeds to Pinecone
+│   │   ├── embed-single.js     # Incremental single-book embedding
+│   │   ├── backfill-journey.js # Backfill journey from top-200 messages
+│   │   ├── export-conversation.js # Export single user chat history to .md
+│   │   └── export-all-other-users.js # Batch export all other users' histories
 │   └── books/             # Transurfing book content
 ├── data/
-│   ├── books/             # 4 Vadim Zeland books (.txt)
+│   ├── books/             # 6 Vadim Zeland books (.txt)
 │   └── courses/
 │       └── renee-garcia/  # Reality 2.0, Becoming Magnetic, Mo Money
 ├── netlify/
@@ -189,7 +198,7 @@ The backend uses a sophisticated RAG pipeline:
 Every RAG prompt includes an explicit source manifest:
 ```
 ⚠️ CRITICAL: YOUR AVAILABLE KNOWLEDGE SOURCES
-📚 BOOKS: Reality Transurfing I-V, Tufti the Priestess, What Tufti Didn't Say, Master of Reality
+📚 BOOKS: Reality Transurfing I-V, Tufti the Priestess, What Tufti Didn't Say, Master of Reality, Transurfing Yourself, Hacking the Technogenic System
 🎓 COURSES: Reality 2.0, Becoming Magnetic, Mo Money
 ⛔ IF YOU DON'T HAVE IT ABOVE, IT DOESN'T EXIST.
 ```
@@ -208,11 +217,28 @@ cd backend && node scripts/clean-knowledge.js
 ```
 Cleans and formats all books + courses into ~80 word paragraphs.
 
-### Embed to Pinecone
+### Embed All to Pinecone (Full Rebuild)
 ```bash
 cd backend && node scripts/embed-knowledge.js
 ```
-Embeds all cleaned content to Pinecone with proper metadata.
+Embeds all cleaned content to Pinecone with proper metadata. ⚠️ Clears the index first.
+
+### Embed a Single Book (Incremental)
+```bash
+cd backend && node scripts/embed-single.js "../data/books/Book_Name.txt" book "Author Name"
+```
+Adds a single book to Pinecone without touching existing data. Includes duplicate detection.
+
+### Export Conversations
+```bash
+# Export single user (defined in script)
+cd backend && node scripts/export-conversation.js
+
+# Batch export all other users (groups by user/conversation)
+cd backend && node scripts/export-all-other-users.js
+```
+Exports messages from Supabase to markdown files with date headers, timestamps, and role labels.
+
 
 ---
 

@@ -27,7 +27,9 @@ const BOOKS = {
     'tufti': 'Tufti_the_Priestess_Live_Stroll_Through_A_-_Vadim_Zeland (1).txt',
     'transurfing': 'Reality_Transurfing_Steps_I-V_-_Vadim_Zeland (1).txt',
     'master': 'Master_of_reality_-_Vadim_Zeland.txt',
-    'didntsay': 'What_Tufti_Didnt_Say_-_Vadim_Zeland.txt'
+    'didntsay': 'What_Tufti_Didnt_Say_-_Vadim_Zeland.txt',
+    'transurfyourself': 'Transurfing_Yourself_-_Vadim_Zeland.txt',
+    'hacking': 'Hacking_the_Technogenic_System_-_Vadim_Zeland.txt'
 };
 
 // Intent types
@@ -52,6 +54,10 @@ const TRANSURFING_KEYWORDS = [
     'mirror', 'reflection', 'coordinates',
     'compose', 'composing reality', 'shift', 'slide',
     'manifest', 'visualization', 'illuminate',
+    'spirit', 'state of spirit', 'no mountain', 'waking dream',
+    'lucid dreaming', 'awakening', 'trigger', 'activator',
+    'technogenic', 'system', 'matrix', 'configuration',
+    'boomerang', 'ray of focus', 'regeneration', 'evolution',
     'what is', 'how do i', 'tell me about', 'explain',
     'how to', 'teach me', 'what does', 'overseer'
 ];
@@ -166,6 +172,8 @@ async function readFromBook(message) {
     if (lower.includes('tufti')) bookKey = 'tufti';
     if (lower.includes('master')) bookKey = 'master';
     if (lower.includes("didn't say") || lower.includes('didnt say')) bookKey = 'didntsay';
+    if (lower.includes('transurfing yourself') || lower.includes('yourself')) bookKey = 'transurfyourself';
+    if (lower.includes('hacking') || lower.includes('technogenic') || lower.includes('matrix')) bookKey = 'hacking';
 
     const bookFile = BOOKS[bookKey];
     const bookPath = path.join(BOOKS_DIR, bookFile);

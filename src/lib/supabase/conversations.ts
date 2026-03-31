@@ -49,7 +49,10 @@ export async function createConversation(userId: string): Promise<string | null>
 }
 
 export async function getOrCreateConversation(userId: string): Promise<string | null> {
-  const existing = await getLatestActiveConversation(userId)
+  // PRIORITY: Get the conversation with the most messages (the real history)
+  // This prevents accidental conversation splits when a new empty one gets created
+  const withMostMessages = await getConversationWithMostMessages(userId)
+  const existing = withMostMessages ?? await getLatestActiveConversation(userId)
   const id = existing ?? (await createConversation(userId))
   return id
 }

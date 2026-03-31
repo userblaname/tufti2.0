@@ -5,13 +5,20 @@ const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+const Sentry = require('@sentry/node');
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+});
 const MemoryHandler = require('./memory-handler');
 const JourneyManager = require('./lib/journey-manager');
+const UserProfileManager = require('./lib/user-profile');
 const { initRAG, retrieveContext, formatPassagesForPrompt, isRAGReady } = require('./lib/rag');
 const { isComplexQuestion, runAgentChain } = require('./lib/multi-agent');
 const { generateAudio, getAvailableVoices, VOICES, DEFAULT_VOICE } = require('./lib/audio-service');
 const { generateSlide, isFluxReady } = require('./lib/slide-service');
 const { runDeepExperiment } = require('./lib/deep-experiment');
+const MemoryEmbeddings = require('./lib/memory-embeddings');
 
 // ============================================
 // STARTUP VALIDATION - Check critical env vars
@@ -35,12 +42,28 @@ const journeyManager = new JourneyManager(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// Initialize user profile manager (permanent memory dossier)
+const userProfileManager = new UserProfileManager(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
 // Initialize RAG on startup (async)
+let memoryEmbeddings = null;
 (async () => {
   try {
     await initRAG();
+
+    // Initialize Memory Embeddings for semantic retrieval
+    memoryEmbeddings = new MemoryEmbeddings();
+    const health = await memoryEmbeddings.healthCheck();
+    if (health.status === 'healthy') {
+      console.log('✅ Memory Embeddings service ready');
+    } else {
+      console.warn('⚠️ Memory Embeddings degraded:', health.error);
+    }
   } catch (error) {
-    console.error('Failed to initialize RAG:', error.message);
+    console.error('Failed to initialize services:', error.message);
   }
 })();
 
@@ -49,7 +72,8 @@ const journeyManager = new JourneyManager(
 // ============================================
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 300, // 300 requests per minute (testing)
+  max: 20,
+  skip: (req) => req.body && req.body.userId === process.env.ADMIN_USER_ID,
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -115,7 +139,30 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
   const { messages, systemPrompt: providedSystemPrompt } = req.body;
   const userId = req.body.userId || 'default-user';
-  const thinkingEnabled = req.body.thinkingEnabled || false;
+
+  // Daily limit: 50 messages per user
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const { count } = await journeyManager.supabase
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', today.toISOString());
+
+  if (count >= 50 && userId !== process.env.ADMIN_USER_ID) {
+    return res.status(429).json({ 
+      error: 'daily_limit_reached',
+      message: "You've walked far enough for today, dear one. The scene needs time to develop. Come back tomorrow, the alternatives space will still be there."
+    });
+  }
+
+  let thinkingEnabled = req.body.thinkingEnabled || false;
+
+  // Force full thinking mode for Admin
+  if (userId === process.env.ADMIN_USER_ID) {
+    thinkingEnabled = true;
+  }
   const deepResearchEnabled = req.body.deepResearchEnabled !== false; // Default to true
   const deepExperimentEnabled = req.body.deepExperimentEnabled || false;
   const memoryEnabled = req.body.memoryEnabled !== false;
@@ -175,6 +222,21 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     }
   }
 
+  // PROFILE DOSSIER: Fetch permanent memory dossier
+  let profileContext = '';
+  let existingProfile = null;
+  if (userId) {
+    try {
+      existingProfile = await userProfileManager.getProfile(userId);
+      if (existingProfile) {
+        profileContext = userProfileManager.formatForPrompt(existingProfile);
+        console.log(`[Profile] Loaded dossier for user ${userId.substring(0, 8)}...`);
+      }
+    } catch (error) {
+      console.error('[Profile] Fetch error:', error.message);
+    }
+  }
+
   // JOURNEY: Fetch and inject user's journey summary
   let journeyContext = '';
   if (userId) {
@@ -186,6 +248,20 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
       }
     } catch (error) {
       console.error('[Journey] Fetch error:', error.message);
+    }
+  }
+
+  // MEMORY: Hybrid retrieval (semantic + keyword fallback) of relevant past conversations
+  let memoryContext = '';
+  if (memoryEmbeddings && userId && userMessage) {
+    try {
+      const memories = await memoryEmbeddings.hybridSearch(userId, userMessage, 30);
+      if (memories.length > 0) {
+        memoryContext = memoryEmbeddings.formatForPrompt(memories);
+        console.log(`[Memory] Retrieved ${memories.length} relevant memories for user ${userId.substring(0, 8)}...`);
+      }
+    } catch (error) {
+      console.error('[Memory] Retrieval error:', error.message);
     }
   }
 
@@ -228,15 +304,19 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         // Content blocks format - validate it has content
         if (content.length === 0) return null;
 
-        // Log details about content blocks for debugging
+        // Log details about content blocks for debugging (images, PDFs, text files)
         const imageBlocks = content.filter(b => b.type === 'image');
+        const documentBlocks = content.filter(b => b.type === 'document');  // PDFs
         const textBlocks = content.filter(b => b.type === 'text');
         console.log('[DEBUG] Message with content blocks:', {
           total: content.length,
           images: imageBlocks.length,
+          documents: documentBlocks.length,  // PDF count
           texts: textBlocks.length,
           imageTypes: imageBlocks.map(b => b.source?.media_type),
-          imageDataLengths: imageBlocks.map(b => b.source?.data?.length || 0)
+          documentTypes: documentBlocks.map(b => b.source?.media_type),
+          imageDataLengths: imageBlocks.map(b => b.source?.data?.length || 0),
+          documentDataLengths: documentBlocks.map(b => b.source?.data?.length || 0)
         });
       } else if (typeof content === 'string') {
         if (!content.trim()) return null;
@@ -430,32 +510,46 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
       console.log('[MULTI-AGENT] Question is complex - activating research agents');
 
       try {
-        const research = await runAgentChain(
-          userMessage,
-          ragContext,
-          journeyContext,
-          headers,
-          process.env.ANTHROPIC_ENDPOINT,
-          res,
-          validatedMessages,
-          imageBlocks  // Pass image blocks to the research chain
-        );
+        // Check if headers already sent (streaming in progress)
+        if (res.headersSent) {
+          console.warn('[MULTI-AGENT] Headers already sent, skipping research phase');
+        } else {
+          const research = await runAgentChain(
+            userMessage,
+            ragContext,
+            journeyContext,
+            headers,
+            process.env.ANTHROPIC_ENDPOINT,
+            res,
+            validatedMessages,
+            imageBlocks  // Pass image blocks to the research chain
+          );
 
-        multiAgentResearch = research;
-        console.log('[MULTI-AGENT] Research complete, injecting findings into main request');
+          multiAgentResearch = research;
+          console.log('[MULTI-AGENT] Research complete, injecting findings into main request');
 
-        // Notify frontend that we are switching to final Tufti synthesis
-        res.write(`data: ${JSON.stringify({
-          agent_start: {
-            name: "Tufti",
-            emoji: "🎬",
-            phase: 3,
-            isFinal: true
-          }
-        })}\n\n`);
-
+          // Notify frontend that we are switching to final Tufti synthesis
+          res.write(`data: ${JSON.stringify({
+            agent_start: {
+              name: "Tufti",
+              emoji: "🎬",
+              phase: 3,
+              isFinal: true
+            }
+          })}\n\n`);
+        }
       } catch (error) {
-        console.error('[MULTI-AGENT] Research failed, falling back to original Tufti:', error);
+        if (!res.headersSent) {
+          // Safe to send error response - but don't kill the whole request, fallback instead
+          console.error('[MULTI-AGENT] Research failed before streaming:', error.message);
+        } else {
+          // Streaming already started - notify client and continue
+          console.error('[MULTI-AGENT] Research failed mid-stream:', error.message);
+          res.write(`data: ${JSON.stringify({
+            warning: 'Research phase failed, continuing with standard response'
+          })}\n\n`);
+        }
+        // Either way, fallback to original Tufti (multiAgentResearch stays null)
       }
     }
 
@@ -533,18 +627,14 @@ Synthesize these research findings into your final response. Speak as the REAL T
       const thinkingRequestBody = {
         model: process.env.ANTHROPIC_MODEL || 'claude-opus-4-5',
         max_tokens: 64000,  // Model maximum limit
-        system: (systemPrompt || 'You are a helpful assistant.') + journeyContext + ragContext,
+        system: (systemPrompt || 'You are a helpful assistant.') + profileContext + memoryContext + journeyContext + ragContext,
         messages: finalMessages,
         stream: true,
         thinking: {
           type: 'enabled',
-          budget_tokens: 32000  // High thinking power while leaving room for response
-        },
-        // Effort parameter for token efficiency (high = best quality for complex reasoning)
-        output_config: {
-          effort: 'high'
+          budget_tokens: userId === process.env.ADMIN_USER_ID ? 60000 : 32000  // Full power for Admin
         }
-        // NO TOOLS in Phase 1
+        // NO TOOLS in Phase 1 - output_config removed (Azure doesn't support it)
       };
 
       const thinkingResponse = await fetch(process.env.ANTHROPIC_ENDPOINT, {
@@ -668,8 +758,8 @@ Synthesize these research findings into your final response. Speak as the REAL T
 
     // If we have thinking context, inject it as system context
     const enhancedSystemPrompt = thinkingContext
-      ? `${systemPrompt || 'You are a helpful assistant.'}${journeyContext}\n\n[Your internal reasoning from thinking phase]:\n${thinkingContext.substring(0, 2000)}...${ragContext}`
-      : (systemPrompt || 'You are a helpful assistant.') + journeyContext + ragContext;
+      ? `${systemPrompt || 'You are a helpful assistant.'}${profileContext}${memoryContext}${journeyContext}\n\n[Your internal reasoning from thinking phase]:\n${thinkingContext.substring(0, 2000)}...${ragContext}`
+      : (systemPrompt || 'You are a helpful assistant.') + profileContext + memoryContext + journeyContext + ragContext;
 
     // Tool use handling loop
     let currentMessages = [...finalMessages];
@@ -687,10 +777,7 @@ Synthesize these research findings into your final response. Speak as the REAL T
         system: enhancedSystemPrompt,
         messages: currentMessages,
         stream: true,
-        // Effort: medium for balanced speed/quality in non-thinking mode
-        output_config: {
-          effort: thinkingEnabled ? 'high' : 'medium'
-        },
+        // output_config removed - Azure doesn't support effort parameter
         // NO THINKING in Phase 2 - avoids signature issues
         ...(tools.length > 0 ? { tools } : {})
       };
@@ -854,10 +941,15 @@ Synthesize these research findings into your final response. Speak as the REAL T
         if (journeyManager.shouldUpdate(newCount)) {
           console.log('[Journey] Triggering summary update...');
 
-          // Fetch recent messages for summarization (this would come from Supabase normally)
-          // For now, just use the current conversation
+          // Filter to only user/assistant messages (exclude system prompts)
+          const chatMessages = messages
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .slice(-40);
+
+          console.log(`[Journey] Sending ${chatMessages.length} chat messages for extraction`);
+
           const extractedJourney = await journeyManager.extractJourney(
-            messages.slice(-40), // Last 40 messages
+            chatMessages,
             process.env.ANTHROPIC_ENDPOINT,
             process.env.ANTHROPIC_API_KEY
           );
@@ -865,15 +957,38 @@ Synthesize these research findings into your final response. Speak as the REAL T
           if (extractedJourney) {
             await journeyManager.updateJourney(userId, extractedJourney);
             console.log('[Journey] Summary updated!');
+          } else {
+            console.warn('[Journey] Extraction returned null — summary NOT updated');
+          }
+        }
+
+        // --- DOSSIER UPDATE CHECK ---
+        if (userProfileManager.shouldUpdate({ message_count: newCount })) {
+          console.log('[Profile] Triggering dossier update...');
+          const chatMessages = messages
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .slice(-100); // Look further back for profile facts
+            
+          const updatedProfile = await userProfileManager.extractProfile(
+            existingProfile, // pass the one we fetched at the start of the request
+            chatMessages,
+            process.env.ANTHROPIC_ENDPOINT,
+            process.env.ANTHROPIC_API_KEY
+          );
+
+          if (updatedProfile) {
+            await userProfileManager.updateProfile(userId, updatedProfile);
+            console.log('[Profile] Dossier successfully updated!');
           }
         }
       } catch (error) {
-        console.error('[Journey] Update error:', error);
+        console.error('[Journey] Update error:', error.message);
       }
     }
 
     safeEnd();
   } catch (error) {
+    Sentry.captureException(error);
     console.error('Error calling Anthropic API:', error);
     sendError(error.message);
   }
@@ -1099,13 +1214,132 @@ app.post('/api/slide/generate', chatLimiter, async (req, res) => {
   }
 });
 
-// GET /api/slide/status - Check if slide generation is available
 app.get('/api/slide/status', (req, res) => {
   res.json({
     available: isFluxReady(),
     model: process.env.AZURE_FLUX_MODEL || 'FLUX.2-pro'
   });
 });
+
+// ============================================
+// MEMORY SYNC ENDPOINT (localStorage -> Supabase)
+// ============================================
+
+// POST /api/memory/sync - Sync localStorage messages to memory embeddings
+app.post('/api/memory/sync', memoryLimiter, async (req, res) => {
+  try {
+    const { userId, messages } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'messages array is required' });
+    }
+
+    if (!memoryEmbeddings) {
+      return res.status(503).json({ error: 'Memory service not ready' });
+    }
+
+    console.log(`[Memory Sync] Starting sync for user ${userId.substring(0, 8)}... with ${messages.length} messages`);
+
+    // Check which messages are already embedded
+    const { data: existingEmbeddings } = await memoryEmbeddings.supabase
+      .from('memory_embeddings')
+      .select('message_id')
+      .eq('user_id', userId);
+
+    const existingIds = new Set((existingEmbeddings || []).map(e => e.message_id));
+
+    // Filter to only new messages with valid text
+    const newMessages = messages.filter(m =>
+      m.id &&
+      m.text &&
+      m.text.trim().length > 0 &&
+      !existingIds.has(m.id)
+    );
+
+    console.log(`[Memory Sync] ${existingIds.size} already embedded, ${newMessages.length} new to embed`);
+
+    if (newMessages.length === 0) {
+      return res.json({
+        success: true,
+        synced: 0,
+        message: 'All messages already embedded'
+      });
+    }
+
+    // Prepare messages with importance scores
+    const messagesWithImportance = newMessages.map(msg => ({
+      id: msg.id,
+      text: msg.text,
+      importance: calculateMessageImportance(msg.text)
+    }));
+
+    // Batch embed
+    const result = await memoryEmbeddings.batchStore(userId, messagesWithImportance);
+
+    console.log(`[Memory Sync] Complete: ${result.successful} synced, ${result.failed} failed`);
+
+    res.json({
+      success: true,
+      synced: result.successful,
+      failed: result.failed,
+      alreadyEmbedded: existingIds.size
+    });
+
+  } catch (error) {
+    console.error('[Memory Sync] Error:', error);
+    res.status(500).json({ error: error.message || 'Sync failed' });
+  }
+});
+
+// GET /api/memory/status - Check memory sync status for a user
+app.get('/api/memory/status/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!memoryEmbeddings) {
+      return res.status(503).json({ error: 'Memory service not ready' });
+    }
+
+    const { count } = await memoryEmbeddings.supabase
+      .from('memory_embeddings')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    res.json({
+      userId,
+      embeddedMessages: count || 0,
+      memoryReady: true
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper: Calculate importance score for a message
+function calculateMessageImportance(text) {
+  if (!text) return 0.3;
+  let score = 0.5;
+
+  if (text.length > 200) score += 0.1;
+  if (text.length > 500) score += 0.1;
+
+  const personalPatterns = [
+    /my name is/i, /i am/i, /i'm from/i, /i live in/i,
+    /my goal/i, /i want to/i, /family|brother|sister|mother|father|cousin/i,
+    /remember|important|never forget/i, /naafri/i
+  ];
+
+  for (const pattern of personalPatterns) {
+    if (pattern.test(text)) score += 0.05;
+  }
+
+  return Math.min(score, 1.0);
+}
 
 // Create HTTP server and attach Express app
 const server = http.createServer(app);

@@ -13,17 +13,18 @@ import {
   fetchMessagesPaginated,
   archiveConversation
 } from '@/lib/supabase/conversations'
-import { backupMessagesToLocal, getBackupMessages } from '@/lib/messageBackup'
+import { backupMessagesToLocal, getBackupMessages, syncToMemory } from '@/lib/messageBackup'
 
 // A simple local ID generator for messages created on the client
 const generateUniqueId = () => `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
 const CONV_CACHE_PREFIX = 'tufti_conversation_';
 
-// Image data type for uploads
+// Attachment data type for uploads (supports images, PDFs, and text files)
 type ImageData = {
   data: string
-  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+  mediaType: string  // Was restrictive, now supports all MIME types
+  fileName?: string  // Optional filename for text/code files
 }
 
 export function useChat(userProfile: UserProfile) {
@@ -159,18 +160,15 @@ export function useChat(userProfile: UserProfile) {
       const cacheKey = `${CONV_CACHE_PREFIX}${userId}`;
 
       try {
-        // ALWAYS get the latest active conversation from Supabase (don't trust cache alone)
-        // This ensures we load today's messages even if cache points to old conversation
-        let conversationId = await getOrCreateConversation(userId);
+        // Use cached conversation ID if available, only query Supabase if no cache
+        // This prevents accidentally switching to a newer empty conversation
         const cachedId = localStorage.getItem(cacheKey);
+        let conversationId = cachedId || await getOrCreateConversation(userId);
 
-        // Update cache if it's different
-        if (conversationId && conversationId !== cachedId) {
-          console.log('[useChat] Updating cached conversation from', cachedId?.substring(0, 8), 'to', conversationId?.substring(0, 8));
+        // Only update cache if we didn't have one before
+        if (conversationId && !cachedId) {
+          console.log('[useChat] Saving conversation to cache:', conversationId?.substring(0, 8));
           localStorage.setItem(cacheKey, conversationId);
-        } else if (!conversationId && cachedId) {
-          // Fallback to cache if Supabase fails
-          conversationId = cachedId;
         }
 
         if (conversationId) {
@@ -225,6 +223,26 @@ export function useChat(userProfile: UserProfile) {
       }
     })()
   }, [session?.user?.id, userIsOnboarded])
+
+  // 🧠 MEMORY SYNC: Sync localStorage messages to backend for embeddings
+  // Runs once per session after hydration
+  const hasSyncedMemoryRef = useRef(false);
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId || !hasHydratedRef.current || hasSyncedMemoryRef.current) return;
+
+    // Only sync once per session
+    hasSyncedMemoryRef.current = true;
+
+    // Async sync - don't block the UI
+    syncToMemory(userId).then(result => {
+      if (result.synced > 0) {
+        console.log(`[useChat] 🧠 Memory sync complete: ${result.synced} messages embedded`);
+      }
+    }).catch(err => {
+      console.warn('[useChat] Memory sync failed:', err);
+    });
+  }, [session?.user?.id, hasHydratedRef.current])
 
   // Effect to drive the onboarding conversation
   useEffect(() => {
@@ -291,7 +309,7 @@ export function useChat(userProfile: UserProfile) {
     setOnboardingStep(nextStep);
   }, [currentQuestion]);
 
-  const sendMessage = useCallback(async (text: string, images?: ImageData[]) => {
+  const sendMessage = useCallback(async (text: string, images?: ImageData[], realityContext?: string) => {
     if (isSending) return;
 
     // During onboarding, route to onboarding flow
@@ -385,7 +403,13 @@ export function useChat(userProfile: UserProfile) {
       })
       const timeContext = `\n[TEMPORAL CONTEXT]\nCurrent User Time: ${timeString}\n`
 
-      const finalSystemPrompt = `${profileLine}${timeContext}${systemPrompt}`
+      // 🌍 ELITE REALITY ANCHOR INJECTION
+      // If reality context is present, inject it powerfully into the system prompt
+      const realityAnchor = realityContext
+        ? `\n\n${realityContext}\n`
+        : '';
+
+      const finalSystemPrompt = `${profileLine}${timeContext}${realityAnchor}${systemPrompt}`
 
       const messagesForApi = [
         { role: 'system', content: finalSystemPrompt },

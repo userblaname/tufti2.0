@@ -76,12 +76,15 @@ class JourneyManager {
      */
     async incrementMessageCount(userId) {
         try {
-            // Try to increment existing record
-            const { data: existing } = await this.supabase
+            // Try to fetch existing record
+            const { data: existing, error } = await this.supabase
                 .from('user_journey')
                 .select('message_count')
                 .eq('user_id', userId)
                 .single();
+
+            // PGRST116 means zero rows found. We handle this as a valid "create new" scenario.
+            if (error && error.code !== 'PGRST116') throw error;
 
             if (existing) {
                 const newCount = (existing.message_count || 0) + 1;
@@ -104,9 +107,35 @@ class JourneyManager {
     }
 
     /**
+     * Safely extract text content from a message.
+     * Handles string content, content arrays (image messages), and objects.
+     */
+    safeContent(content) {
+        if (typeof content === 'string') return content;
+        if (Array.isArray(content)) {
+            return content
+                .filter(block => block.type === 'text')
+                .map(block => block.text || '')
+                .join(' ');
+        }
+        if (content && typeof content === 'object' && content.text) {
+            return content.text;
+        }
+        return '[non-text content]';
+    }
+
+    /**
      * Extract journey summary from conversation using Claude
      */
     async extractJourney(messages, anthropicEndpoint, anthropicKey) {
+        // Safely serialize messages, handling content arrays
+        const serialized = messages.map(m => {
+            const text = this.safeContent(m.content);
+            // Truncate very long messages to keep prompt manageable
+            const truncated = text.length > 800 ? text.substring(0, 800) + '...' : text;
+            return `${m.role}: ${truncated}`;
+        }).join('\n\n');
+
         const extractionPrompt = `You are analyzing a user's Reality Transurfing journey.
 Review their recent conversation messages and extract:
 
@@ -116,7 +145,7 @@ Review their recent conversation messages and extract:
 4. CURRENT_FOCUS: What they're actively working on (1 sentence)
 
 Recent messages:
-${messages.map(m => `${m.role}: ${m.content}`).join('\n\n')}
+${serialized}
 
 Return ONLY a JSON object in this exact format:
 {
@@ -127,6 +156,8 @@ Return ONLY a JSON object in this exact format:
 }`;
 
         try {
+            console.log(`[JourneyManager] Extracting journey from ${messages.length} messages (prompt ~${extractionPrompt.length} chars)`);
+
             const response = await fetch(anthropicEndpoint, {
                 method: 'POST',
                 headers: {
@@ -136,23 +167,37 @@ Return ONLY a JSON object in this exact format:
                 },
                 body: JSON.stringify({
                     model: 'claude-opus-4-5',
-                    max_tokens: 500,
+                    max_tokens: 1000,
                     messages: [{ role: 'user', content: extractionPrompt }]
                 })
             });
 
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`[JourneyManager] API error ${response.status}:`, errorText.substring(0, 300));
+                return null;
+            }
+
             const data = await response.json();
-            const content = data.content[0].text;
+            const content = data.content?.[0]?.text;
+
+            if (!content) {
+                console.error('[JourneyManager] Empty response from API:', JSON.stringify(data).substring(0, 300));
+                return null;
+            }
 
             // Parse JSON from response
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
+                const parsed = JSON.parse(jsonMatch[0]);
+                console.log('[JourneyManager] Successfully extracted journey summary');
+                return parsed;
             }
 
-            throw new Error('Failed to extract JSON from response');
+            console.error('[JourneyManager] No JSON found in response:', content.substring(0, 200));
+            return null;
         } catch (error) {
-            console.error('[JourneyManager] Extraction error:', error);
+            console.error('[JourneyManager] Extraction error:', error.message);
             return null;
         }
     }
