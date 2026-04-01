@@ -401,12 +401,20 @@ exports.handler = async function (event) {
     };
 
     // Call Claude via Azure AI Foundry
-    // Requires anthropic-beta: output-128k-2025-02-19 for claude-opus-4-5
     const requestHeaders = {
       'Content-Type': 'application/json',
       'x-api-key': ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01'
     };
+
+    // Diagnostic logging — shows in Netlify function logs
+    console.log('[Claude] → Sending to Azure:', ANTHROPIC_ENDPOINT);
+    console.log('[Claude] → Model:', ANTHROPIC_MODEL, '| max_tokens:', fetchBody.max_tokens);
+    console.log('[Claude] → System length:', fullSystemPrompt.length, 'chars');
+    console.log('[Claude] → Messages:', JSON.stringify(fetchBody.messages.map(m => ({
+      role: m.role,
+      len: typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length
+    }))));
 
     let response = await fetch(ANTHROPIC_ENDPOINT, {
       method: 'POST',
