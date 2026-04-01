@@ -64,6 +64,11 @@ export function hasBackupMessages(): boolean {
  * Call this when user logs in or periodically
  */
 export async function syncToMemory(userId: string): Promise<{ synced: number; failed: number }> {
+    // Memory sync only works with the local dev Express server — skip in production
+    if (!import.meta.env.DEV) {
+        return { synced: 0, failed: 0 }
+    }
+
     try {
         const messages = getBackupMessages()
         if (messages.length === 0) {
