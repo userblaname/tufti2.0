@@ -386,15 +386,17 @@ exports.handler = async function (event) {
     // Build full system prompt: Tufti persona + profile + journey + RAG
     const fullSystemPrompt = systemPrompt + profileContext + journeyContext + ragContext;
 
-    // 3. Thinking Mode configuration
-    let thinkingEnabled = reqThinkingEnabled || false;
-    if (isAdmin) {
-      thinkingEnabled = true;
-    }
+    // 3. Thinking Mode — DISABLED on Azure (causes 500)
+    // Azure AI Foundry doesn't support Anthropic's extended thinking
+    const thinkingEnabled = false;
+
+    // Disable thinking on Azure — it causes 500 Internal Errors
+    // Azure AI Foundry doesn't support Anthropic's extended thinking parameters
+    let thinkingEnabled_disabled = false; // Force off for now
 
     const fetchBody = {
       model: ANTHROPIC_MODEL,
-      max_tokens: thinkingEnabled ? 64000 : 4096,
+      max_tokens: 4096,
       system: fullSystemPrompt,
       messages: chatMessages.map(m => ({
         role: m.role,
@@ -402,12 +404,17 @@ exports.handler = async function (event) {
       }))
     };
 
-    if (thinkingEnabled) {
-      fetchBody.thinking = {
-        type: 'enabled',
-        budget_tokens: isAdmin ? 60000 : 32000
-      };
-    }
+    // DEBUG: Log request details to find the 500 cause
+    console.log(`[DEBUG] Model: ${ANTHROPIC_MODEL}`);
+    console.log(`[DEBUG] System prompt length: ${fullSystemPrompt?.length || 0}`);
+    console.log(`[DEBUG] Messages count: ${chatMessages.length}`);
+    console.log(`[DEBUG] Message roles: ${chatMessages.map(m => m.role).join(', ')}`);
+    chatMessages.forEach((m, i) => {
+      const contentType = typeof m.content;
+      const contentLen = contentType === 'string' ? m.content.length : JSON.stringify(m.content).length;
+      console.log(`[DEBUG] Msg ${i}: role=${m.role}, contentType=${contentType}, len=${contentLen}`);
+    });
+    console.log(`[DEBUG] Fetch body size: ${JSON.stringify(fetchBody).length} bytes`);
 
     // Call Claude
     // Note: claude-opus-4-5 on Azure AI Foundry requires the output-128k beta header
@@ -424,25 +431,11 @@ exports.handler = async function (event) {
       body: JSON.stringify(fetchBody)
     });
 
-    // If thinking mode fails (Azure doesn't support it), retry without thinking
-    if (!response.ok && thinkingEnabled) {
-      const errorText = await response.text();
-      console.error('[Thinking] Failed, falling back to standard mode:', response.status, errorText.substring(0, 200));
-
-      delete fetchBody.thinking;
-      fetchBody.max_tokens = 4096;
-
-      response = await fetch(ANTHROPIC_ENDPOINT, {
-        method: 'POST',
-        headers: requestHeaders,
-        body: JSON.stringify(fetchBody)
-      });
-    }
-
     if (!response.ok) {
       const error = await response.text();
-      console.error('[Claude] Error:', response.status, error.substring(0, 200));
-      return { statusCode: response.status, body: error };
+      console.error('[Claude] Error:', response.status, error.substring(0, 500));
+      console.error('[Claude] Full request body (first 2000 chars):', JSON.stringify(fetchBody).substring(0, 2000));
+      return { statusCode: response.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: error.substring(0, 500) }) };
     }
 
     const data = await response.json();
