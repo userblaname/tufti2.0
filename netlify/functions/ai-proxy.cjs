@@ -21,7 +21,8 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 
 const ANTHROPIC_ENDPOINT = process.env.ANTHROPIC_ENDPOINT;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+// Support both new and legacy env var names for the Azure Anthropic API key
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.AZURE_OPENAI_API_KEY;
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-5';
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
 const PINECONE_INDEX = process.env.PINECONE_INDEX || 'tufti-knowledge-v2';
