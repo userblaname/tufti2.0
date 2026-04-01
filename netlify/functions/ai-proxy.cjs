@@ -405,6 +405,7 @@ exports.handler = async function (event) {
     };
 
     // DEBUG: Log request details to find the 500 cause
+    console.log(`[DEBUG] API_KEY set: ${!!ANTHROPIC_API_KEY}, length: ${ANTHROPIC_API_KEY?.length || 0}, prefix: ${ANTHROPIC_API_KEY?.substring(0,6) || 'MISSING'}`);
     console.log(`[DEBUG] Model: ${ANTHROPIC_MODEL}`);
     console.log(`[DEBUG] System prompt length: ${fullSystemPrompt?.length || 0}`);
     console.log(`[DEBUG] Messages count: ${chatMessages.length}`);
