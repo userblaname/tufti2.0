@@ -405,8 +405,7 @@ exports.handler = async function (event) {
     const requestHeaders = {
       'Content-Type': 'application/json',
       'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'output-128k-2025-02-19'
+      'anthropic-version': '2023-06-01'
     };
 
     let response = await fetch(ANTHROPIC_ENDPOINT, {
@@ -416,9 +415,12 @@ exports.handler = async function (event) {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('[Claude] Error:', response.status, error.substring(0, 500));
-      return { statusCode: response.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: error.substring(0, 500) }) };
+      const errorBody = await response.text();
+      console.error('[Claude] Azure error:', response.status, errorBody.substring(0, 1000));
+      console.error('[Claude] Request model:', ANTHROPIC_MODEL, '| Messages:', chatMessages.length, '| System length:', fullSystemPrompt.length);
+      let errorMsg;
+      try { errorMsg = JSON.parse(errorBody)?.error?.message || errorBody; } catch { errorMsg = errorBody; }
+      return { statusCode: response.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: errorMsg.substring(0, 500) }) };
     }
 
     const data = await response.json();
