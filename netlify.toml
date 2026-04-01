@@ -4,8 +4,6 @@
 
 [functions]
   directory = "netlify/functions"
-  # Bundle dependencies with the function
-  external_node_modules = ["@pinecone-database/pinecone", "@sentry/node", "@supabase/supabase-js"]
   node_bundler = "esbuild"
 
 [[redirects]]

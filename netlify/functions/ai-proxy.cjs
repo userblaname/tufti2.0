@@ -8,9 +8,11 @@
  * - Claude via Azure Anthropic
  */
 
-const { Pinecone } = require('@pinecone-database/pinecone');
-const Sentry = require('@sentry/node');
-const { createClient } = require('@supabase/supabase-js');
+// Safe requires — function still starts even if a dependency fails to load
+let Pinecone, Sentry, createClient;
+try { ({ Pinecone } = require('@pinecone-database/pinecone')); } catch (e) { console.warn('[BOOT] Pinecone unavailable:', e.message); }
+try { Sentry = require('@sentry/node'); } catch (e) { console.warn('[BOOT] Sentry unavailable:', e.message); }
+try { ({ createClient } = require('@supabase/supabase-js')); } catch (e) { console.warn('[BOOT] Supabase unavailable:', e.message); }
 
 // ============================================
 // CONFIGURATION
@@ -31,19 +33,21 @@ const AZURE_EMBEDDING_KEY = process.env.AZURE_EMBEDDING_KEY;
 const AZURE_EMBEDDING_DEPLOYMENT = process.env.AZURE_EMBEDDING_DEPLOYMENT;
 const EMBEDDING_DIMENSIONS = 3072;
 
-// Initialize Sentry
-if (SENTRY_DSN) {
-  Sentry.init({ 
+// Initialize Sentry (skip if package failed to load)
+if (SENTRY_DSN && Sentry) {
+  Sentry.init({
     dsn: SENTRY_DSN,
     tracesSampleRate: 1.0
   });
 }
 
-// Initialize Supabase
+// Initialize Supabase (skip if package failed to load)
 let supabase = null;
-if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY && createClient) {
   supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 }
+
+console.log('[BOOT] ai-proxy loaded | Pinecone:', !!Pinecone, '| Sentry:', !!Sentry, '| Supabase:', !!createClient);
 
 // Rate limiting
 const RATE_LIMIT_WINDOW_MS = 60000;
@@ -109,7 +113,7 @@ function detectIntent(message) {
 // RAG FUNCTIONS
 // ============================================
 async function initPinecone() {
-  if (!pinecone && PINECONE_API_KEY) {
+  if (!pinecone && PINECONE_API_KEY && Pinecone) {
     pinecone = new Pinecone({ apiKey: PINECONE_API_KEY });
     index = pinecone.Index(PINECONE_INDEX);
     console.log('✓ Pinecone connected');
@@ -448,7 +452,7 @@ exports.handler = async function (event) {
     console.error('[Function] Error:', error);
 
     // 4. Capture Exceptions with Sentry
-    if (SENTRY_DSN) {
+    if (SENTRY_DSN && Sentry) {
       Sentry.captureException(error);
     }
 
