@@ -200,6 +200,30 @@ Do NOT make up course names, quotes, or teachings that aren't retrieved.`;
 }
 
 // ============================================
+// MESSAGE SANITIZATION
+// ============================================
+// Anthropic API requires messages to alternate user/assistant.
+// Supabase history can have consecutive same-role messages from
+// failed responses, retries, or fast sends. Merge them.
+function sanitizeMessages(messages) {
+  if (!messages || messages.length === 0) return messages;
+  const merged = [{ role: messages[0].role, content: messages[0].content }];
+  for (let i = 1; i < messages.length; i++) {
+    const prev = merged[merged.length - 1];
+    const curr = messages[i];
+    if (curr.role === prev.role) {
+      // Merge consecutive same-role messages
+      const prevText = typeof prev.content === 'string' ? prev.content : '';
+      const currText = typeof curr.content === 'string' ? curr.content : '';
+      prev.content = prevText + '\n\n' + currText;
+    } else {
+      merged.push({ role: curr.role, content: curr.content });
+    }
+  }
+  return merged;
+}
+
+// ============================================
 // RATE LIMITING
 // ============================================
 function getClientIP(event) {
@@ -394,14 +418,22 @@ exports.handler = async function (event) {
     // 3. Thinking Mode — disabled on Azure AI Foundry (not supported)
     const thinkingEnabled = false;
 
+    // Sanitize: merge consecutive same-role messages (Anthropic requires alternation)
+    const cleanMessages = sanitizeMessages(chatMessages.map(m => ({
+      role: m.role,
+      content: typeof m.content === 'string' ? m.content : m.content
+    })));
+
+    // Limit history to avoid massive context — keep last 20 turns max
+    const trimmedMessages = cleanMessages.length > 40
+      ? cleanMessages.slice(-40)
+      : cleanMessages;
+
     const fetchBody = {
       model: ANTHROPIC_MODEL,
       max_tokens: 4096,
       system: fullSystemPrompt,
-      messages: chatMessages.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string' ? m.content : m.content
-      }))
+      messages: trimmedMessages
     };
 
     // Call Claude via Azure AI Foundry
