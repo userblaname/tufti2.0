@@ -417,7 +417,9 @@ export async function getAiResponse(
 
     // Prefer normalized server content when available
     if (typeof data?.content === 'string' && data.content.trim().length > 0) {
-      return data.content.trim();
+      const content = data.content.trim();
+      if (onChunk) onChunk(content); // Update UI message text (production has no streaming)
+      return content;
     }
 
     const extractText = (payload: any): string => {
@@ -477,6 +479,7 @@ export async function getAiResponse(
       throw new Error("The AI response was not in the expected format.");
     }
 
+    if (onChunk) onChunk(aiMessage); // Update UI message text (production has no streaming)
     return aiMessage;
 
   } catch (error) {
