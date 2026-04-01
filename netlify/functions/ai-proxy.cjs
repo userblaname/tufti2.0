@@ -386,13 +386,8 @@ exports.handler = async function (event) {
     // Build full system prompt: Tufti persona + profile + journey + RAG
     const fullSystemPrompt = systemPrompt + profileContext + journeyContext + ragContext;
 
-    // 3. Thinking Mode — DISABLED on Azure (causes 500)
-    // Azure AI Foundry doesn't support Anthropic's extended thinking
+    // 3. Thinking Mode — disabled on Azure AI Foundry (not supported)
     const thinkingEnabled = false;
-
-    // Disable thinking on Azure — it causes 500 Internal Errors
-    // Azure AI Foundry doesn't support Anthropic's extended thinking parameters
-    let thinkingEnabled_disabled = false; // Force off for now
 
     const fetchBody = {
       model: ANTHROPIC_MODEL,
@@ -404,21 +399,8 @@ exports.handler = async function (event) {
       }))
     };
 
-    // DEBUG: Log request details to find the 500 cause
-    console.log(`[DEBUG] API_KEY set: ${!!ANTHROPIC_API_KEY}, length: ${ANTHROPIC_API_KEY?.length || 0}, prefix: ${ANTHROPIC_API_KEY?.substring(0,6) || 'MISSING'}`);
-    console.log(`[DEBUG] Model: ${ANTHROPIC_MODEL}`);
-    console.log(`[DEBUG] System prompt length: ${fullSystemPrompt?.length || 0}`);
-    console.log(`[DEBUG] Messages count: ${chatMessages.length}`);
-    console.log(`[DEBUG] Message roles: ${chatMessages.map(m => m.role).join(', ')}`);
-    chatMessages.forEach((m, i) => {
-      const contentType = typeof m.content;
-      const contentLen = contentType === 'string' ? m.content.length : JSON.stringify(m.content).length;
-      console.log(`[DEBUG] Msg ${i}: role=${m.role}, contentType=${contentType}, len=${contentLen}`);
-    });
-    console.log(`[DEBUG] Fetch body size: ${JSON.stringify(fetchBody).length} bytes`);
-
-    // Call Claude
-    // Note: claude-opus-4-5 on Azure AI Foundry requires the output-128k beta header
+    // Call Claude via Azure AI Foundry
+    // Requires anthropic-beta: output-128k-2025-02-19 for claude-opus-4-5
     const requestHeaders = {
       'Content-Type': 'application/json',
       'x-api-key': ANTHROPIC_API_KEY,
@@ -435,7 +417,6 @@ exports.handler = async function (event) {
     if (!response.ok) {
       const error = await response.text();
       console.error('[Claude] Error:', response.status, error.substring(0, 500));
-      console.error('[Claude] Full request body (first 2000 chars):', JSON.stringify(fetchBody).substring(0, 2000));
       return { statusCode: response.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: error.substring(0, 500) }) };
     }
 
