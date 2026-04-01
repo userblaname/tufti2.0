@@ -410,13 +410,17 @@ exports.handler = async function (event) {
     }
 
     // Call Claude
+    // Note: claude-opus-4-5 on Azure AI Foundry requires the output-128k beta header
+    const requestHeaders = {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'output-128k-2025-02-19'
+    };
+
     let response = await fetch(ANTHROPIC_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: requestHeaders,
       body: JSON.stringify(fetchBody)
     });
 
@@ -430,11 +434,7 @@ exports.handler = async function (event) {
 
       response = await fetch(ANTHROPIC_ENDPOINT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
-        },
+        headers: requestHeaders,
         body: JSON.stringify(fetchBody)
       });
     }
