@@ -1,7 +1,7 @@
 // This is the full code for: src/lib/chat-service.ts
 
 // Defines the structure for a message in the conversation
-import { TUFTI_SYSTEM_PROMPT } from '@/lib/tufti'
+// System prompt is now loaded server-side in ai-proxy.cjs
 
 // Image content block for Claude Vision API
 interface ImageContent {
@@ -86,62 +86,13 @@ export async function getAiResponse(
   images?: AttachmentData[],  // Now supports images, PDFs, and text files
   signal?: AbortSignal,
   onAgentEvent?: (event: AgentEvent) => void,
-  deepExperimentEnabled: boolean = false
+  deepExperimentEnabled: boolean = false,
+  personaBriefing?: string
 ): Promise<string> {
   try {
-    // Get current date/time for temporal awareness
-    const now = new Date()
-    const timeString = now.toLocaleString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    })
-
-    // Inject current time into system prompt
-    const systemPromptWithTime = TUFTI_SYSTEM_PROMPT.replace('{{CURRENT_TIME}}', timeString)
-
-    // Add timestamps to conversation history so Tufti knows WHEN each message was sent
-    const messagesWithTimestamps = conversationHistory.map((msg, index) => {
-      // Only add timestamps to user messages, not system or assistant
-      // Adding it to assistant messages confuses the model and makes it output timestamps in its replies
-      if (msg.role !== 'user') return msg
-
-      // Check if the message has a timestamp (from the Message type)
-      const msgWithTs = msg as { timestamp?: Date; content: string; role: string }
-      if (msgWithTs.timestamp) {
-        const msgTime = new Date(msgWithTs.timestamp).toLocaleString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        })
-        // Prefix the content with the timestamp
-        const timestampPrefix = `[${msgTime}] `
-        return {
-          ...msg,
-          content: typeof msg.content === 'string'
-            ? timestampPrefix + msg.content
-            : msg.content
-        }
-      }
-      return msg
-    })
-
-    // Build base messages
-    let messagesWithSystem: ChatMessage[] =
-      conversationHistory[0]?.role === 'system'
-        ? [...messagesWithTimestamps]
-        : [
-          { role: 'system', content: systemPromptWithTime },
-          { role: 'system', content: 'Policy: Keep replies brief (2–6 sentences). End with a single, clear question.' },
-          ...messagesWithTimestamps,
-        ]
+    // System prompt is now server-side — we just pass through messages
+    // No system messages injected here anymore
+    let messagesWithSystem: ChatMessage[] = [...conversationHistory]
 
     // If attachments (images/PDFs/text) are provided, convert the last user message to content blocks format
     if (images && images.length > 0) {
@@ -223,20 +174,8 @@ export async function getAiResponse(
       ? 'http://localhost:3001/api/chat'
       : '/.netlify/functions/ai-proxy';
 
-    console.log('[chat-service] DEV mode:', import.meta.env.DEV);
-    console.log('[chat-service] API_URL:', API_URL);
-    console.log('[chat-service] Sending request with thinkingEnabled:', thinkingEnabled);
-    console.log('[chat-service] Sending request with userId:', userId);
-    console.log('[chat-service] Has images:', !!(images && images.length > 0));
-
-    // DEBUG: Log the last message to see what's being sent
-    const lastMsg = messagesWithSystem[messagesWithSystem.length - 1];
-    console.log('[chat-service] DEBUG - Last message role:', lastMsg?.role);
-    console.log('[chat-service] DEBUG - Last message content type:', typeof lastMsg?.content);
-    if (Array.isArray(lastMsg?.content)) {
-      console.log('[chat-service] DEBUG - Content blocks:', lastMsg.content.map((b: any) => ({ type: b.type, hasData: b.type === 'image' ? !!b.source?.data : !!b.text })));
-    } else {
-      console.log('[chat-service] DEBUG - Content preview:', lastMsg?.content?.substring?.(0, 100));
+    if (import.meta.env.DEV) {
+      console.log('[chat-service] API_URL:', API_URL, '| thinking:', thinkingEnabled, '| images:', !!(images && images.length > 0));
     }
 
     const response = await fetch(API_URL, {
@@ -247,7 +186,8 @@ export async function getAiResponse(
         thinkingEnabled,
         deepResearchEnabled,
         deepExperimentEnabled,
-        userId
+        userId,
+        personaBriefing
       }),
       signal // Pass abort signal to fetch
     });

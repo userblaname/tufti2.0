@@ -29,10 +29,19 @@ npm-debug.log*
 
 # Artifacts (internal)
 /.gemini/
+.claude/
 
-# Data files (too large for git)
-data/books/*.txt
-data/courses/**/*.txt
+# Data files (copyrighted + too large for git)
+data/
+
+# User data exports (contains real user conversations)
+backend/exports/
+
+# Utility scripts (may contain hardcoded IDs)
+backend/scripts/
+
+# Raw prompt text exports
+backend/lib/tufti-prompt-string.txt
 
 # Memories (user data)
 memories/

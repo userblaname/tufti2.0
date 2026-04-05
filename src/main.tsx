@@ -4,11 +4,20 @@ import { AuthProvider } from './contexts/AuthContext.tsx'
 import { createQueryClient, QueryClientProvider } from '@/hooks/useMessagePagination'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
 import * as Sentry from '@sentry/react';
+import posthog from 'posthog-js';
 import './index.css'
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
 });
+
+if (import.meta.env.VITE_POSTHOG_KEY) {
+  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+    capture_pageview: false, // chat app — pageviews aren't meaningful
+    autocapture: false,      // we track explicit events only
+  });
+}
 
 const queryClient = createQueryClient()
 

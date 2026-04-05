@@ -1,11 +1,12 @@
 // src/hooks/useChat.ts
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import posthog from 'posthog-js';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAiResponse, AgentEvent } from '@/lib/chat-service';
 import type { Message, UserProfile } from '@/lib/types';
 import { onboardingScript, OnboardingQuestion } from '@/lib/onboardingQuestions';
-import { TUFTI_SYSTEM_PROMPT } from '@/lib/tufti';
+// System prompt now loaded server-side in ai-proxy.cjs — not sent from frontend
 import {
   getOrCreateConversation,
   saveMessage,
@@ -86,7 +87,8 @@ export function useChat(userProfile: UserProfile) {
 
   // Save to Supabase helper
   const saveToSupabase = useCallback(async (role: 'user' | 'tufti', content: string) => {
-    console.log('🔴🔴🔴 saveToSupabase CALLED 🔴🔴🔴', { role, contentLen: content?.length });
+    // Verbose logging only in dev
+    if (import.meta.env.DEV) console.log('[saveToSupabase]', { role, contentLen: content?.length });
 
     const userId = userProfile.id;
     if (!userId) {
@@ -335,6 +337,12 @@ export function useChat(userProfile: UserProfile) {
     setIsGenerating(true);
     setIsThinking(!!shouldUseThinking);
 
+    posthog.capture('message_sent', {
+      thinking_mode: shouldUseThinking,
+      has_images: !!hasImages,
+      message_length: text.length,
+    });
+
     const userMessage: Message = {
       id: generateUniqueId(),
       text,
@@ -344,8 +352,9 @@ export function useChat(userProfile: UserProfile) {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Save user message
-    saveToSupabase('user', text);
+    // Save user message (with image placeholder if images attached)
+    const saveText = hasImages ? `[📸 Image attached] ${text}` : text;
+    saveToSupabase('user', saveText);
 
     // Unlock input immediately after user message is added
     // User can now type while AI generates (isGenerating blocks sending, not typing)
@@ -385,57 +394,38 @@ export function useChat(userProfile: UserProfile) {
     setMessages(prev => [...prev, optimisticAiMessage]);
 
     try {
+      // System prompt is now server-side — only send personaBriefing + reality context
       const profileName = userProfile?.name || userProfile?.onboarding_answers?.name
-      const profileLine = profileName ? `User name: ${profileName}. Address the user by this name when appropriate.\n` : ''
-      const systemPrompt = (userProfile.persona_briefing
-        ? `${userProfile.persona_briefing}\n\n---\n\n${TUFTI_SYSTEM_PROMPT}`
-        : TUFTI_SYSTEM_PROMPT)
+      const profileLine = profileName ? `User name: ${profileName}. Address the user by this name when appropriate.` : ''
+      const realityAnchor = realityContext || ''
 
-      const now = new Date()
-      const timeString = now.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        timeZoneName: 'short'
-      })
-      const timeContext = `\n[TEMPORAL CONTEXT]\nCurrent User Time: ${timeString}\n`
+      // Combine persona briefing parts for the backend
+      const personaBriefing = [profileLine, realityAnchor, userProfile.persona_briefing]
+        .filter(Boolean)
+        .join('\n\n') || undefined
 
-      // 🌍 ELITE REALITY ANCHOR INJECTION
-      // If reality context is present, inject it powerfully into the system prompt
-      const realityAnchor = realityContext
-        ? `\n\n${realityContext}\n`
-        : '';
+      const messagesForApi = conversationHistory.map(msg => {
+        // Format timestamp for AI visibility
+        const msgTime = msg.timestamp instanceof Date
+          ? msg.timestamp.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })
+          : '';
 
-      const finalSystemPrompt = `${profileLine}${timeContext}${realityAnchor}${systemPrompt}`
+        // Embed timestamp into content so AI can see it
+        const contentWithTime = msgTime
+          ? `[${msgTime}] ${msg.text}`
+          : msg.text;
 
-      const messagesForApi = [
-        { role: 'system', content: finalSystemPrompt },
-        ...conversationHistory.map(msg => {
-          // Format timestamp for AI visibility
-          const msgTime = msg.timestamp instanceof Date
-            ? msg.timestamp.toLocaleString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            })
-            : '';
-
-          // Embed timestamp into content so AI can see it
-          const contentWithTime = msgTime
-            ? `[${msgTime}] ${msg.text}`
-            : msg.text;
-
-          return {
-            content: contentWithTime,
-            role: msg.sender === 'user' ? 'user' : 'assistant'
-          };
-        })
-      ];
+        return {
+          content: contentWithTime,
+          role: msg.sender === 'user' ? 'user' : 'assistant'
+        };
+      });
 
       console.log('[useChat] Calling getAiResponse with thinking enabled:', shouldUseThinking);
       console.log('[useChat] Deep Experiment enabled:', isDeepExperimentEnabled);
@@ -568,12 +558,14 @@ export function useChat(userProfile: UserProfile) {
             }));
           }
         },
-        isDeepExperimentEnabled
+        isDeepExperimentEnabled,
+        personaBriefing
       );
 
       // Save AI response to Supabase
       if (aiReply) {
         await saveToSupabase('tufti', aiReply);
+        posthog.capture('ai_response_received', { reply_length: aiReply.length });
       }
 
     } catch (error: any) {
@@ -582,6 +574,7 @@ export function useChat(userProfile: UserProfile) {
         console.log('[useChat] Generation was cancelled by user');
         return;
       }
+      posthog.capture('ai_error', { error: error.message });
       setChatError(error.message || "An error occurred.");
       setMessages(prev => prev.filter(m => m.id !== tempId || m.text.length > 0));
     } finally {
@@ -718,35 +711,20 @@ export function useChat(userProfile: UserProfile) {
     setMessages(prev => [...prev, optimisticAiMessage]);
 
     try {
+      // System prompt is server-side — build persona briefing for backend
       const profileName = userProfile?.name || userProfile?.onboarding_answers?.name;
-      const profileLine = profileName ? `User name: ${profileName}. Address the user by this name when appropriate.\n` : '';
-      const systemPrompt = userProfile.persona_briefing
-        ? `${userProfile.persona_briefing}\n\n---\n\n${TUFTI_SYSTEM_PROMPT}`
-        : TUFTI_SYSTEM_PROMPT;
-
-      const now = new Date();
-      const timeString = now.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        timeZoneName: 'short'
-      });
-      const timeContext = `\n[TEMPORAL CONTEXT]\nCurrent User Time: ${timeString}\n`;
-      const finalSystemPrompt = `${profileLine}${timeContext}${systemPrompt}`;
+      const profileLine = profileName ? `User name: ${profileName}. Address the user by this name when appropriate.` : '';
+      const editPersonaBriefing = [profileLine, userProfile.persona_briefing]
+        .filter(Boolean)
+        .join('\n\n') || undefined;
 
       // Build conversation history from truncated messages (including the edited one)
       const conversationHistory = truncatedMessages;
-      const messagesForApi = [
-        { role: 'system', content: finalSystemPrompt },
-        ...conversationHistory.map(msg => ({
-          content: msg.text,
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          timestamp: msg.timestamp
-        }))
-      ];
+      const messagesForApi = conversationHistory.map(msg => ({
+        content: msg.text,
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        timestamp: msg.timestamp
+      }));
 
       console.log('[useChat] Regenerating response for edited message');
 
@@ -769,7 +747,10 @@ export function useChat(userProfile: UserProfile) {
         isDeepResearchEnabled,
         userProfile.id,
         undefined, // No images for edit regeneration
-        abortControllerRef.current.signal
+        abortControllerRef.current.signal,
+        undefined, // onAgentEvent
+        false,     // deepExperimentEnabled
+        editPersonaBriefing
       );
 
       // Save AI response to Supabase

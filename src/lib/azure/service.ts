@@ -1,5 +1,7 @@
 import { OpenAIClient } from "@azure/openai"
 import { azureConfig, createAzureCredential } from "./config"
+// LEGACY: This import now returns '' — system prompt lives server-side in ai-proxy.cjs
+// This entire AzureService class is unused; production uses chat-service.ts → ai-proxy.cjs
 import { TUFTI_SYSTEM_PROMPT } from "@/lib/tufti"
 import type { UserProfile } from "@/lib/types"
 

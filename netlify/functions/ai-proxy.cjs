@@ -14,6 +14,9 @@ try { ({ Pinecone } = require('@pinecone-database/pinecone')); } catch (e) { con
 try { Sentry = require('@sentry/node'); } catch (e) { console.warn('[BOOT] Sentry unavailable:', e.message); }
 try { ({ createClient } = require('@supabase/supabase-js')); } catch (e) { console.warn('[BOOT] Supabase unavailable:', e.message); }
 
+// System prompt — loaded server-side only, never sent from frontend
+const { TUFTI_SYSTEM_PROMPT } = require('./lib/tufti-prompt');
+
 // ============================================
 // CONFIGURATION
 // ============================================
@@ -48,11 +51,6 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY && createClient) {
 }
 
 console.log('[BOOT] ai-proxy loaded | Pinecone:', !!Pinecone, '| Sentry:', !!Sentry, '| Supabase:', !!createClient);
-
-// Rate limiting
-const RATE_LIMIT_WINDOW_MS = 60000;
-const RATE_LIMIT_MAX = 20;
-const buckets = new Map();
 
 // Pinecone client
 let pinecone = null;
@@ -212,35 +210,27 @@ function sanitizeMessages(messages) {
     const prev = merged[merged.length - 1];
     const curr = messages[i];
     if (curr.role === prev.role) {
-      // Merge consecutive same-role messages
-      const prevText = typeof prev.content === 'string' ? prev.content : '';
-      const currText = typeof curr.content === 'string' ? curr.content : '';
-      prev.content = prevText + '\n\n' + currText;
+      // IMAGE SAFEGUARD: Preserve image/document blocks during merge
+      const extractText = (c) => typeof c === 'string' ? c
+        : Array.isArray(c) ? c.filter(b => b.type === 'text').map(b => b.text).join(' ') : '';
+      const extractBlocks = (c) => Array.isArray(c) ? c.filter(b => b.type !== 'text') : [];
+
+      const prevText = extractText(prev.content);
+      const currText = extractText(curr.content);
+      const allBlocks = [...extractBlocks(prev.content), ...extractBlocks(curr.content)];
+      const mergedText = [prevText, currText].filter(Boolean).join('\n\n');
+
+      if (allBlocks.length > 0) {
+        // Keep image/document blocks + merged text as content array
+        prev.content = [...allBlocks, { type: 'text', text: mergedText }];
+      } else {
+        prev.content = mergedText;
+      }
     } else {
       merged.push({ role: curr.role, content: curr.content });
     }
   }
   return merged;
-}
-
-// ============================================
-// RATE LIMITING
-// ============================================
-function getClientIP(event) {
-  const xff = event.headers['x-forwarded-for'] || '';
-  return xff.split(',')[0].trim() || 'unknown';
-}
-
-function isRateLimited(ip) {
-  const now = Date.now();
-  const bucket = buckets.get(ip) || { start: now, count: 0 };
-  if (now - bucket.start > RATE_LIMIT_WINDOW_MS) {
-    buckets.set(ip, { start: now, count: 1 });
-    return false;
-  }
-  bucket.count++;
-  buckets.set(ip, bucket);
-  return bucket.count > RATE_LIMIT_MAX;
 }
 
 // ============================================
@@ -332,17 +322,11 @@ exports.handler = async function (event) {
       return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
-    const { messages, userId, thinkingEnabled: reqThinkingEnabled } = JSON.parse(event.body || '{}');
+    const { messages, userId, thinkingEnabled: reqThinkingEnabled, personaBriefing } = JSON.parse(event.body || '{}');
     const uid = userId || 'default-user';
     const isAdmin = uid === ADMIN_USER_ID;
 
-    // 1. Rate Limiting Check
-    const clientIP = getClientIP(event);
-    if (!isAdmin && isRateLimited(clientIP)) {
-      return { statusCode: 429, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Rate limited' }) };
-    }
-
-    // 2. Daily Message Limit
+    // 1. Daily Message Limit (Supabase — persists across serverless instances)
     if (!isAdmin && supabase) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -371,15 +355,20 @@ exports.handler = async function (event) {
       return { statusCode: 400, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Missing messages' }) };
     }
 
-    // Separate system messages from conversation messages
-    // Frontend sends Tufti system prompt as role:'system' in messages array
-    // Anthropic API requires system as a separate parameter
-    const systemMessages = messages.filter(m => m.role === 'system');
+    // System prompt is loaded server-side (never from client)
+    // Strip any system messages the client might still send (backwards compat)
     const chatMessages = messages.filter(m => m.role !== 'system');
-    const systemPrompt = systemMessages
-      .map(m => typeof m.content === 'string' ? m.content : '')
-      .filter(Boolean)
-      .join('\n\n');
+
+    // Build base system prompt with time awareness
+    const now = new Date();
+    const timeString = now.toLocaleString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', timeZoneName: 'short'
+    });
+    const systemPrompt = (personaBriefing
+      ? `${personaBriefing}\n\n---\n\n${TUFTI_SYSTEM_PROMPT}`
+      : TUFTI_SYSTEM_PROMPT
+    ).replace('{{CURRENT_TIME}}', timeString);
 
     // Get user message for RAG
     const lastUserMsg = [...chatMessages].reverse().find(m => m.role === 'user');
