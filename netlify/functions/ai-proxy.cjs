@@ -318,6 +318,26 @@ async function getJourneyContext(userId) {
 // ============================================
 exports.handler = async function (event) {
   try {
+    // Health check — GET /.netlify/functions/ai-proxy
+    if (event.httpMethod === 'GET') {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'ok',
+          env: {
+            endpoint: ANTHROPIC_ENDPOINT ? ANTHROPIC_ENDPOINT.substring(0, 60) + '...' : null,
+            model: ANTHROPIC_MODEL,
+            apiKey: ANTHROPIC_API_KEY ? '***' + ANTHROPIC_API_KEY.slice(-4) : null,
+            supabase: !!supabase,
+            pinecone: !!PINECONE_API_KEY,
+            sentry: !!SENTRY_DSN,
+            systemPromptLength: TUFTI_SYSTEM_PROMPT?.length || 0
+          }
+        })
+      };
+    }
+
     if (event.httpMethod !== 'POST') {
       return { statusCode: 405, body: 'Method Not Allowed' };
     }
@@ -460,19 +480,20 @@ exports.handler = async function (event) {
       body: JSON.stringify(fetchBody)
     });
 
-    // Retry up to 3x on Azure 500 with exponential backoff (2s, 4s, 8s)
-    // Azure AI Foundry transient errors typically resolve within 3-5 seconds
-    const RETRY_DELAYS = [2000, 4000, 8000];
-    for (let attempt = 0; !response.ok && response.status === 500 && attempt < RETRY_DELAYS.length; attempt++) {
-      const delay = RETRY_DELAYS[attempt];
-      console.warn(`[Claude] Azure 500 on attempt ${attempt + 1} — retrying in ${delay}ms...`);
+    // Retry once on transient Azure errors (1.5s delay — safe within 10s function timeout)
+    let retryAttempts = 0;
+    const RETRY_DELAYS = [1500];
+    const RETRYABLE = [500, 502, 503, 504, 529];
+    for (retryAttempts = 0; !response.ok && RETRYABLE.includes(response.status) && retryAttempts < RETRY_DELAYS.length; retryAttempts++) {
+      const delay = RETRY_DELAYS[retryAttempts];
+      console.warn(`[Claude] Azure ${response.status} on attempt ${retryAttempts + 1} — retrying in ${delay}ms...`);
       await new Promise(r => setTimeout(r, delay));
       response = await fetch(ANTHROPIC_ENDPOINT, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(fetchBody)
       });
-      console.log(`[Claude] Retry ${attempt + 1} result: ${response.status}`);
+      console.log(`[Claude] Retry ${retryAttempts + 1} result: ${response.status}`);
     }
 
     if (!response.ok) {
@@ -481,7 +502,24 @@ exports.handler = async function (event) {
       console.error('[Claude] Request model:', ANTHROPIC_MODEL, '| Messages:', chatMessages.length, '| System length:', fullSystemPrompt.length);
       let errorMsg;
       try { errorMsg = JSON.parse(errorBody)?.error?.message || errorBody; } catch { errorMsg = errorBody; }
-      return { statusCode: response.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: errorMsg.substring(0, 500) }) };
+      return {
+        statusCode: response.status,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: errorMsg.substring(0, 500),
+          debug: {
+            model: ANTHROPIC_MODEL,
+            endpointPrefix: ANTHROPIC_ENDPOINT?.substring(0, 50),
+            systemLength: fullSystemPrompt.length,
+            messageCount: trimmedMessages.length,
+            firstMsgRole: trimmedMessages[0]?.role,
+            firstMsgLen: typeof trimmedMessages[0]?.content === 'string'
+              ? trimmedMessages[0].content.length
+              : JSON.stringify(trimmedMessages[0]?.content).length,
+            retries: retryAttempts + 1
+          }
+        })
+      };
     }
 
     const data = await response.json();
