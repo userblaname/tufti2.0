@@ -424,10 +424,15 @@ exports.handler = async function (event) {
       content: typeof m.content === 'string' ? m.content : m.content
     })));
 
-    // Limit history to avoid massive context — keep last 20 turns max
-    const trimmedMessages = cleanMessages.length > 40
-      ? cleanMessages.slice(-40)
-      : cleanMessages;
+    // Limit to last 20 messages (10 turns) — Azure struggles with large payloads
+    const trimmedMessages = cleanMessages.length > 20
+      ? cleanMessages.slice(-20)
+      : [...cleanMessages];
+
+    // Anthropic requires first message to be 'user'
+    while (trimmedMessages.length > 0 && trimmedMessages[0].role !== 'user') {
+      trimmedMessages.shift();
+    }
 
     const fetchBody = {
       model: ANTHROPIC_MODEL,
@@ -457,6 +462,17 @@ exports.handler = async function (event) {
       headers: requestHeaders,
       body: JSON.stringify(fetchBody)
     });
+
+    // Retry once on Azure 500 (transient errors are common)
+    if (!response.ok && response.status === 500) {
+      console.warn('[Claude] Azure 500 on first attempt — retrying in 1s...');
+      await new Promise(r => setTimeout(r, 1000));
+      response = await fetch(ANTHROPIC_ENDPOINT, {
+        method: 'POST',
+        headers: requestHeaders,
+        body: JSON.stringify(fetchBody)
+      });
+    }
 
     if (!response.ok) {
       const errorBody = await response.text();
