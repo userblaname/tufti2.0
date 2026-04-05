@@ -423,6 +423,14 @@ exports.handler = async function (event) {
       trimmedMessages.shift();
     }
 
+    // Remove any messages with empty/null content (can trigger Azure 500)
+    const validMessages = trimmedMessages.filter(m => {
+      if (Array.isArray(m.content)) return m.content.length > 0;
+      return m.content && String(m.content).trim().length > 0;
+    });
+    trimmedMessages.length = 0;
+    trimmedMessages.push(...validMessages);
+
     const fetchBody = {
       model: ANTHROPIC_MODEL,
       max_tokens: 4096,
@@ -452,15 +460,19 @@ exports.handler = async function (event) {
       body: JSON.stringify(fetchBody)
     });
 
-    // Retry once on Azure 500 (transient errors are common)
-    if (!response.ok && response.status === 500) {
-      console.warn('[Claude] Azure 500 on first attempt — retrying in 1s...');
-      await new Promise(r => setTimeout(r, 1000));
+    // Retry up to 3x on Azure 500 with exponential backoff (2s, 4s, 8s)
+    // Azure AI Foundry transient errors typically resolve within 3-5 seconds
+    const RETRY_DELAYS = [2000, 4000, 8000];
+    for (let attempt = 0; !response.ok && response.status === 500 && attempt < RETRY_DELAYS.length; attempt++) {
+      const delay = RETRY_DELAYS[attempt];
+      console.warn(`[Claude] Azure 500 on attempt ${attempt + 1} — retrying in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
       response = await fetch(ANTHROPIC_ENDPOINT, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(fetchBody)
       });
+      console.log(`[Claude] Retry ${attempt + 1} result: ${response.status}`);
     }
 
     if (!response.ok) {

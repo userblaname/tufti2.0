@@ -353,8 +353,10 @@ export function useChat(userProfile: UserProfile) {
     setMessages(prev => [...prev, userMessage]);
 
     // Save user message (with image placeholder if images attached)
+    // IMPORTANT: await before fetchMessages to avoid race condition where
+    // the saved message appears in the fetched history AND the appended list
     const saveText = hasImages ? `[📸 Image attached] ${text}` : text;
-    saveToSupabase('user', saveText);
+    await saveToSupabase('user', saveText);
 
     // Unlock input immediately after user message is added
     // User can now type while AI generates (isGenerating blocks sending, not typing)
