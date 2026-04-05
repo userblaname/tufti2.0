@@ -15,7 +15,7 @@ try { Sentry = require('@sentry/node'); } catch (e) { console.warn('[BOOT] Sentr
 try { ({ createClient } = require('@supabase/supabase-js')); } catch (e) { console.warn('[BOOT] Supabase unavailable:', e.message); }
 
 // System prompt — loaded server-side only, never sent from frontend
-const { TUFTI_SYSTEM_PROMPT } = require('./lib/tufti-prompt');
+const { TUFTI_SYSTEM_PROMPT } = require('./lib/tufti-prompt.cjs');
 
 // ============================================
 // CONFIGURATION
